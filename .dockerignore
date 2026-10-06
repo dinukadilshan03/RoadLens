@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+
+frontend/web/node_modules
+frontend/web/.next
+
+notebooks
