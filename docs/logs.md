@@ -39,3 +39,20 @@
 
 - Project initialization is complete for the backend and frontend scaffolds.
 - Machine-learning modules, shared application logic, domain models, API routes beyond `/health`, tests, and production UI are not implemented yet.
+
+## 2026-10-07
+
+### Frontend Docker
+
+- Added a multi-stage Node.js 22 Dockerfile with npm ci and a non-root runtime on port 3000.
+- Enabled Next.js standalone output, including public and static assets in the image.
+- Added frontend .dockerignore and build/run instructions in frontend/web/README.md.
+- Production build verification was blocked by Google Fonts connectivity. Docker build/run verification remains pending because the Docker engine was unavailable.
+
+### Compose integration
+
+- Added root compose.yaml to build and start backend and frontend on a shared network.
+- Added backend readiness check and frontend startup dependency.
+- Added /api path forwarding in Next.js, using a build-time BACKEND_URL supplied by Compose.
+- Documented startup and health-check URLs in the root README.
+- Frontend configuration lint and diff whitespace checks passed; runtime verification is limited by Docker access in the agent environment.
