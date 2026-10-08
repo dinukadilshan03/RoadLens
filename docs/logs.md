@@ -1,5 +1,18 @@
 # RoadLens Setup Log
 
+## 2026-10-08
+
+### PostgreSQL foundation
+
+- Selected PostgreSQL and documented the upload-first data plan in `docs/data-plan.md`.
+- Added PostgreSQL 17.11 to Compose with a named volume, loopback-only port 5432 and a readiness check.
+- Added `.env.example` and local ignored `.env` credentials; excluded environment files from Docker build context.
+- Added psycopg connectivity and `/health/db`, returning HTTP 503 without connection details on failure. Existing `/health` remains a process check.
+- Configured the backend to wait for PostgreSQL and the frontend to wait for database-aware backend readiness.
+- Started the database successfully and verified PostgreSQL 17.11 and a real authenticated backend query.
+- Five focused tests and Ruff checks passed. Compose configuration validated. Full frontend/backend container rebuild was not part of this verification.
+- Application tables, migrations and PostGIS are not added yet; the next milestone is the initial upload schema.
+
 ## 2026-10-06
 
 ### Repository and tooling

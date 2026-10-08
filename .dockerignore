@@ -9,3 +9,6 @@ frontend/web/node_modules
 frontend/web/.next
 
 notebooks
+.env
+.env.*
+.tmp-uv-cache
