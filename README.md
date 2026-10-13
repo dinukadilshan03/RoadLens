@@ -1,5 +1,17 @@
 # RoadLens
 
+## Current repository status
+
+The repository currently contains the application scaffolding and infrastructure wiring, not a complete production workflow. The implemented baseline includes:
+
+- Python FastAPI backend with a lightweight `/health` endpoint and a database-aware `/health/db` check.
+- PostgreSQL 17.11 service in Docker Compose with `.env`-driven credentials and a readiness check.
+- Next.js frontend scaffold in `frontend/web` with Compose-driven proxying to the backend.
+- ML, shared, and backend domain folders created for future feature work, but not yet populated with the actual upload, processing, or analytics pipeline.
+- Test coverage for database connectivity and health checks under `tests/`.
+
+The following remain outstanding: application tables/migrations, upload processing, job orchestration, model adapters, authentication, and a functional user interface beyond the starter app shell.
+
 ## Docker Compose
 
 PostgreSQL is configured as the `db` service. Before the first start, copy

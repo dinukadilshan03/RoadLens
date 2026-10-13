@@ -1,5 +1,21 @@
 # RoadLens Setup Log
 
+## 2026-10-12
+
+### Repository status refresh
+
+- Confirmed the current repository state: the backend includes a FastAPI app with `/health` and `/health/db`, plus database connectivity tests.
+- Confirmed PostgreSQL is configured in Compose with local `.env` credentials and backend startup sequencing, but the application schema and migrations are still pending.
+- Confirmed the frontend is a Next.js scaffold with Docker and proxy setup, and the UI remains the default generated starter rather than a RoadLens feature interface.
+- Confirmed the ML, shared, and backend domain folders exist for future implementation, but the actual upload, analysis, and result-processing workflow is not yet built.
+- Refreshed the root README and project documentation to distinguish implemented infrastructure from the planned platform design documents.
+
+### Current status
+
+- Infrastructure scaffolding is in place for the backend, frontend, and database.
+- The backend health and database connectivity checks are implemented and tested.
+- The repository is not yet at the feature-complete RoadLens platform stage described in the design documents; those documents remain forward-looking implementation notes rather than current app behavior.
+
 ## 2026-10-08
 
 ### PostgreSQL foundation
