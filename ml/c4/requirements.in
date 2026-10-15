@@ -1,0 +1,10 @@
+# C4 adapter runtime dependencies (in addition to the repo base: numpy, pandas).
+# Lock with: uv pip compile ml/c4/requirements.in -p 3.11 --universal -o ml/c4/requirements.lock
+numpy>=2.4.6
+pandas>=3.0.6
+scipy>=1.14
+scikit-learn>=1.5
+xgboost>=2.1
+joblib>=1.4
+# API upload handling (FastAPI itself comes from the backend base dependencies)
+python-multipart>=0.0.20
