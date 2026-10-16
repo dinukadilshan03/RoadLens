@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import SegmentMap from "./SegmentMap";
+import SegmentMap, { type MapStyle } from "./SegmentMap";
 import {
   ApiError,
   C4_API,
@@ -9,6 +9,7 @@ import {
   CLASS_LABELS,
   api,
   isActive,
+  type LabelCheck,
   type ModelInfo,
   type RoughnessClass,
   type Run,
@@ -122,6 +123,10 @@ function UploadForm({ onCreated }: { onCreated: (run: Run) => void }) {
         Sensor manifest <span className="font-normal text-zinc-500">JSON, must include &quot;gravity_included&quot;: true</span>
         <input name="manifest" type="file" accept=".json,application/json" required className={fileCls} />
       </label>
+      <label className="flex flex-col gap-1 text-xs font-medium">
+        Reference labels <span className="font-normal text-zinc-500">optional · timestamp_ms, road_condition — to compare with the model</span>
+        <input name="labels" type="file" accept=".csv,text/csv" className={fileCls} />
+      </label>
       {error && <p className="rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
       <button
         type="submit"
@@ -131,6 +136,60 @@ function UploadForm({ onCreated }: { onCreated: (run: Run) => void }) {
         {busy ? "Uploading…" : "Upload and assess"}
       </button>
     </form>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+function Evaluation({ lc }: { lc: LabelCheck }) {
+  if (!lc.windows || !lc.confusion_matrix || !lc.per_class) {
+    return <p className="rounded-md bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">{lc.note}</p>;
+  }
+  const cm = lc.confusion_matrix.rows_true_cols_pred;
+  const max = Math.max(...cm.flat(), 1);
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h3 className="text-sm font-semibold">Model vs reference labels</h3>
+        <span className="text-[11px] text-zinc-500">{lc.windows} windows · {lc.method}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Stat label="Accuracy" value={`${(100 * (lc.accuracy ?? 0)).toFixed(1)}%`} />
+        <Stat label="Macro-F1" value={(lc.macro_f1 ?? 0).toFixed(3)} />
+        {CLASSES.map((c) => (
+          <Stat key={c} label={`F1 ${CLASS_LABELS[c]}`} value={lc.per_class![c].f1.toFixed(3)} hint={`${lc.per_class![c].support} windows`} />
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="text-xs">
+          <thead>
+            <tr>
+              <th className="p-1.5 text-left font-normal text-zinc-500">Actual ↓ / Predicted →</th>
+              {CLASSES.map((c) => (
+                <th key={c} className="p-1.5 font-medium">{CLASS_LABELS[c]}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {CLASSES.map((t, i) => (
+              <tr key={t}>
+                <th className="p-1.5 text-left font-medium">{CLASS_LABELS[t]}</th>
+                {CLASSES.map((p, j) => (
+                  <td
+                    key={p}
+                    className="min-w-16 p-1.5 text-center tabular-nums"
+                    style={{
+                      background: i === j ? `rgba(26,152,80,${0.15 + 0.6 * (cm[i][j] / max)})` : cm[i][j] ? `rgba(215,48,39,${0.1 + 0.6 * (cm[i][j] / max)})` : undefined,
+                    }}
+                  >
+                    {cm[i][j]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -209,6 +268,8 @@ function RunDetails({ run, segments }: { run: Run; segments: SegmentCollection |
         </>
       )}
 
+      {s?.label_check && <Evaluation lc={s.label_check} />}
+
       {run.warnings.length > 0 && (
         <ul className="flex flex-col gap-1 rounded-md bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
           {run.warnings.map((w) => (
@@ -246,6 +307,45 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 // ---------------------------------------------------------------------------------------------
+const NO_LABEL = "#9ca3af";
+
+function useMapStyle(mode: "predicted" | "actual" | "match", lc: LabelCheck | undefined): MapStyle | undefined {
+  const classLegend = CLASSES.map((c) => ({ label: CLASS_LABELS[c], color: CLASS_COLORS[c] }));
+  const truth = (id: string) => lc?.segments?.[id]?.true_class ?? null;
+  const tip = (id: string, pred: RoughnessClass) => {
+    const t = truth(id);
+    return t ? `Model: <b>${CLASS_LABELS[pred]}</b> · Actual: <b>${CLASS_LABELS[t]}</b>` : "No reference label";
+  };
+  if (!lc?.windows || mode === "predicted") {
+    return lc?.windows
+      ? { color: (f) => CLASS_COLORS[f.properties.roughness_class], tooltip: (f) => tip(f.properties.record_id, f.properties.roughness_class), legend: classLegend }
+      : undefined;
+  }
+  if (mode === "actual") {
+    return {
+      color: (f) => {
+        const t = truth(f.properties.record_id);
+        return t ? CLASS_COLORS[t] : NO_LABEL;
+      },
+      tooltip: (f) => tip(f.properties.record_id, f.properties.roughness_class),
+      legend: [...classLegend, { label: "No label", color: NO_LABEL }],
+    };
+  }
+  return {
+    color: (f) => {
+      const t = truth(f.properties.record_id);
+      return !t ? NO_LABEL : t === f.properties.roughness_class ? "#1a9850" : "#d73027";
+    },
+    tooltip: (f) => tip(f.properties.record_id, f.properties.roughness_class),
+    legend: [
+      { label: "Correct", color: "#1a9850" },
+      { label: "Wrong", color: "#d73027" },
+      { label: "No label", color: NO_LABEL },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 export default function C4Dashboard() {
   const [model, setModel] = useState<ModelInfo | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
@@ -255,6 +355,9 @@ export default function C4Dashboard() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [demoBusy, setDemoBusy] = useState(false);
   const loadedSegmentsFor = useRef<string | null>(null);
+  const [mapMode, setMapMode] = useState<"predicted" | "actual" | "match">("predicted");
+  const labelCheck = selected?.summary?.label_check;
+  const mapStyle = useMapStyle(mapMode, labelCheck);
 
   const refreshRuns = useCallback(async () => {
     try {
@@ -409,8 +512,21 @@ export default function C4Dashboard() {
 
       {/* ------------------------------------------------------------- main area */}
       <main className="flex min-w-0 flex-1 flex-col gap-4">
+        {labelCheck?.windows ? (
+          <div className="flex items-center gap-1 self-start rounded-lg border border-zinc-200 p-1 text-xs dark:border-zinc-800">
+            {(["predicted", "actual", "match"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMapMode(m)}
+                className={`rounded-md px-3 py-1.5 ${mapMode === m ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "hover:bg-zinc-100 dark:hover:bg-zinc-900"}`}
+              >
+                {m === "predicted" ? "Model prediction" : m === "actual" ? "Actual label" : "Correct / wrong"}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="h-[55vh] min-h-[360px]">
-          <SegmentMap data={segments} />
+          <SegmentMap data={segments} style={mapStyle} />
         </div>
         <section className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
           {selected ? (

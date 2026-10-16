@@ -1,2 +1,5 @@
-# C4 API run folders (uploads and results); never committed.
 runs/
+# Colab test packages (model weights + PVS data); never committed.
+*.zip
+# Research notebooks contain outputs (results, plots); kept locally, not committed.
+notebooks/*.ipynb

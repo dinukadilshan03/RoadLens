@@ -26,6 +26,18 @@ export interface RunSummary {
     duration_s: number;
     speed_source: string;
   };
+  label_check?: LabelCheck;
+}
+
+export interface LabelCheck {
+  windows: number;
+  accuracy?: number;
+  macro_f1?: number;
+  per_class?: Record<RoughnessClass, { precision: number; recall: number; f1: number; support: number }>;
+  confusion_matrix?: { labels: RoughnessClass[]; rows_true_cols_pred: number[][] };
+  segments: Record<string, { true_class: RoughnessClass | null; share: number }>;
+  method?: string;
+  note?: string;
 }
 
 export interface Run {

@@ -2,7 +2,7 @@
 C4 REST API (FastAPI router, mounted by the RoadLens backend under /api/v1).
 
     GET  /api/v1/c4/model                    model in use (version, checksum, demo or production)
-    POST /api/v1/c4/runs                     upload IMU (or acc + gyro), GPS and manifest -> 202 + run
+    POST /api/v1/c4/runs                     upload IMU (or acc + gyro), GPS, manifest (+ optional labels) -> 202
     POST /api/v1/c4/runs/demo                run the synthetic fixture (no upload needed)
     GET  /api/v1/c4/runs                     recent runs
     GET  /api/v1/c4/runs/{run_id}            status, stage, summary, warnings, error
@@ -37,6 +37,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from ..roughness.adapter import C4Cancelled, C4Request, run
+from ..roughness.evaluate import evaluate, read_labels
 from ..roughness.inputs import C4InputError
 from .store import RunStore, now
 
@@ -115,7 +116,7 @@ def build_router(storage_dir=None, model_dir=None, allow_demo=None, demo_dir=Non
     r = APIRouter(prefix='/c4', tags=['C4 road roughness'])
     r.store = store
 
-    def execute(run_id, req_kwargs):
+    def execute(run_id, req_kwargs, labels_path=None):
         d = store.dir(run_id)
         with one_at_a_time:
             if store.get(run_id).get('cancel_requested'):
@@ -124,12 +125,17 @@ def build_router(storage_dir=None, model_dir=None, allow_demo=None, demo_dir=Non
             store.update(run_id, status='running', started_at=now())
             try:
                 mdir, kind = models.resolve()
+                labels = read_labels(labels_path) if labels_path else None      # validate before inference
                 res = run(C4Request(model_dir=str(mdir), external_run_id=run_id, **req_kwargs),
                           _StoreContext(store, run_id, d / 'outputs'))
+                summary = {k: res.summary[k] for k in ('segments', 'input', 'processing', 'model')}
+                if labels is not None:
+                    import pandas as pd
+                    windows = pd.read_csv(d / 'outputs' / res.artifacts['windows_csv'])
+                    summary['label_check'] = evaluate(windows, res.records, labels)
                 store.complete(run_id, res.records, status='succeeded', stage='done', finished_at=now(),
                                model_kind=kind, model_version=res.summary['producer']['model_version'],
-                               summary={k: res.summary[k] for k in ('segments', 'input', 'processing', 'model')},
-                               warnings=res.warnings, artifacts=res.artifacts)
+                               summary=summary, warnings=res.warnings, artifacts=res.artifacts)
             except C4InputError as exc:
                 store.update(run_id, status='failed', finished_at=now(),
                              error={'code': 'invalid_input', 'message': str(exc), 'retryable': False})
@@ -177,6 +183,8 @@ def build_router(storage_dir=None, model_dir=None, allow_demo=None, demo_dir=Non
             gyro: Annotated[UploadFile | None, File(description='Gyroscope CSV (with acc, instead of imu)')] = None,
             manifest: Annotated[UploadFile | None, File(description='Sensor manifest JSON file')] = None,
             manifest_json: Annotated[str | None, Form(description='Sensor manifest as a JSON string')] = None,
+            labels: Annotated[UploadFile | None, File(description='Optional reference labels CSV '
+                                                      '(timestamp_ms,road_condition) to evaluate the result')] = None,
             survey_id: Annotated[str | None, Form()] = None):
         if not imu and not (acc and gyro):
             return _error(422, 'invalid_input', 'Upload an IMU CSV, or both an accelerometer CSV and a gyroscope CSV.')
@@ -197,7 +205,7 @@ def build_router(storage_dir=None, model_dir=None, allow_demo=None, demo_dir=Non
         d = store.dir(meta['run_id']) / 'inputs'
         paths = {}
         try:
-            for name, up in (('imu', imu), ('acc', acc), ('gyro', gyro), ('gps', gps)):
+            for name, up in (('imu', imu), ('acc', acc), ('gyro', gyro), ('gps', gps), ('labels', labels)):
                 if up is not None:
                     p = d / f'{name}.csv'
                     _save_upload(up, p, MAX_CSV_BYTES)
@@ -211,7 +219,8 @@ def build_router(storage_dir=None, model_dir=None, allow_demo=None, demo_dir=Non
         if 'imu_path' in paths:
             paths.pop('acc_path', None), paths.pop('gyro_path', None)
         (d / 'manifest.json').write_text(json.dumps(man, indent=2))
-        background.add_task(execute, meta['run_id'], {'survey_id': survey_id, 'manifest': man, **paths})
+        labels_path = paths.pop('labels_path', None)
+        background.add_task(execute, meta['run_id'], {'survey_id': survey_id, 'manifest': man, **paths}, labels_path)
         return public(meta)
 
     @r.post('/runs/demo', status_code=202)

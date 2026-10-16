@@ -123,3 +123,32 @@ def test_no_model_and_demo_disabled(tmp_path):
     meta = c.get(f'/api/v1/c4/runs/{run_id}').json()
     assert meta['status'] == 'failed' and meta['error']['code'] == 'model_unavailable'
     json.dumps(meta)
+
+
+def _labels_csv():
+    import pandas as pd
+    truth = pd.read_csv(FIXTURE / 'truth.csv')
+    rows = []
+    for t in range(0, 75_000, 10):
+        road = truth.road_type[(truth.start_ms <= t) & (t < truth.end_ms)].iat[0]
+        rows.append(f"{t},{'' if road == 'stationary' else road}")
+    return ('timestamp_ms,road_condition\n' + '\n'.join(rows)).encode()
+
+
+def test_upload_with_labels_reports_comparison(client):
+    r = upload(client, labels=('labels.csv', _labels_csv(), 'text/csv'))
+    assert r.status_code == 202
+    meta = client.get(f"/api/v1/c4/runs/{r.json()['run_id']}").json()
+    assert meta['status'] == 'succeeded', meta
+    lc = meta['summary']['label_check']
+    assert lc['windows'] > 30 and lc['macro_f1'] >= 0.7
+    cm = lc['confusion_matrix']['rows_true_cols_pred']
+    assert sum(map(sum, cm)) == lc['windows']
+    recs = client.get(f"/api/v1/c4/runs/{meta['run_id']}/records").json()['records']
+    assert {x['record_id'] for x in recs} == set(lc['segments'])
+
+
+def test_invalid_labels_fail_the_run(client):
+    r = upload(client, labels=('labels.csv', b'timestamp_ms,road_condition\n0,excellent\n', 'text/csv'))
+    meta = client.get(f"/api/v1/c4/runs/{r.json()['run_id']}").json()
+    assert meta['status'] == 'failed' and 'unknown classes' in meta['error']['message']
