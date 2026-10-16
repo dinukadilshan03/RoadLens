@@ -1,14 +1,49 @@
+# Git & environment
 .git
 .venv
+.env
+.env.*
+!.env.example
+.tmp-uv-cache
+
+# Python caches & testing
 __pycache__
-*.pyc
+*.py[cod]
+*$py.class
 .pytest_cache
 .ruff_cache
+.coverage
+htmlcov
 
+# ML datasets, runs, weights & notebook caches (prevents 10GB+ context leak)
+ml/**/data
+ml/**/runs
+ml/**/weights
+ml/**/notebooks
+**/.ipynb_checkpoints
+*.pt
+*.pth
+*.onnx
+*.engine
+*.safetensors
+*.tflite
+*.cache
+wandb
+
+# Frontend build artifacts
 frontend/web/node_modules
 frontend/web/.next
 
-notebooks
-.env
-.env.*
-.tmp-uv-cache
+# OS & IDE metadata
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.vscode
+.idea
+*.log
+
+# Documentation and tests (not needed inside application runtime container)
+docs
+tests

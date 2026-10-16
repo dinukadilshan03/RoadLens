@@ -1,9 +1,55 @@
+# Environment variables
 .env
 .env.*
 !.env.example
+
+# Python virtual environment & cache
 .venv/
 .tmp-uv-cache/
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+
+# Build & distribution
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Testing & linting
 .pytest_cache/
 .ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# IDEs & editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Large model weights repo-wide
+*.pt
+*.pth
+*.onnx
+*.engine
+*.safetensors
+*.tflite
+*.bin
+
+# Logs
+*.log

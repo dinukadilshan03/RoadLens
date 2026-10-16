@@ -1,0 +1,34 @@
+# Hyperparameters for Base Model Training (B0 Baseline)
+# Architecture: YOLOv8m / YOLO11m on 4-Class RDD2022
+
+# Optimizer & Learning Rate
+optimizer: AdamW       # AdamW for stable convergence across diverse pavement scales
+lr0: 0.001             # Initial learning rate
+lrf: 0.01              # Final learning rate ratio (lr0 * lrf = 1e-5)
+momentum: 0.937        # Momentum
+weight_decay: 0.0005   # Weight decay
+warmup_epochs: 3.0     # Warmup epochs
+warmup_momentum: 0.8   # Warmup initial momentum
+warmup_bias_lr: 0.1    # Warmup initial bias lr
+cos_lr: true           # Cosine learning rate scheduler
+
+# Loss Gains
+box: 7.5               # Bounding box loss gain
+cls: 0.5               # Classification loss gain
+dfl: 1.5               # Distribution focal loss gain
+
+# Data Augmentations (Specialized for road distress detection)
+hsv_h: 0.015           # Hue augmentation (subtle variations in pavement tint)
+hsv_s: 0.5             # Saturation (different wet/dry conditions)
+hsv_v: 0.4             # Brightness (sunlight, cloud cover, tree shadows)
+degrees: 0.0           # Image rotation (roads are generally oriented vertically in dashcams)
+translate: 0.1         # Image translation (+/- 10%)
+scale: 0.5             # Image scale jitter (+/- 50% for multi-distance crack scaling)
+shear: 0.0             # Shear (deg)
+perspective: 0.0       # Perspective distortion (disabled to maintain road surface geometry)
+flipud: 0.0            # Flip up-down (disabled: sky is up, road is down)
+fliplr: 0.5            # Flip left-right (horizontal symmetry in crack patterns)
+bgr: 0.0               # Channel flip
+mosaic: 1.0            # Mosaic augmentation (combines 4 scenes, critical for context)
+mixup: 0.1             # Mixup augmentation (subtle blend for regularization)
+copy_paste: 0.0        # Segment copy-paste (disabled for bounding-box detection)
