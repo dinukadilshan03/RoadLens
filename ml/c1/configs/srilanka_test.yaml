@@ -1,0 +1,12 @@
+# Sri Lankan Road Damage Test Dataset Configuration
+# Used for cross-domain evaluation against the base model
+
+path: ../data/SRILANKA_TEST    # root dataset path (relative to execution dir or absolute)
+test: images                   # test images folder
+
+# Classes aligned with the 4-class RDD taxonomy
+names:
+  0: Longitudinal_Crack_D00
+  1: Transverse_Crack_D10
+  2: Alligator_Crack_D20
+  3: Pothole_D40
