@@ -1,29 +1,34 @@
-"""Dual-domain evaluation script for C1.
+"""Dual-Domain Evaluation & Gap Analysis Pipeline for C1 Base Model.
 
-Refinements & Features:
-1. Standardized Metrics:
-   - Overall mAP@50, mAP@50:95, Precision, Recall, F1-score.
-2. Per-Class Granularity:
-   - AP@50, AP@50:95, Precision, Recall for:
-     * D00: Longitudinal Crack
-     * D10: Transverse Crack
-     * D20: Alligator Crack
-     * D40: Pothole
-3. Country-Slice Breakdown for RDD2022:
-   - Evaluates sub-splits for Japan, India, Czech, Norway, US, China to analyze regional domain differences.
-4. Domain Gap Calculation:
-   - ΔmAP = (mAP_in_domain - mAP_cross_domain) / mAP_in_domain * 100%
-5. Exports:
-   - Markdown summary table matching Table 4 & Table 5 in proposal.
-   - CSV export for dissertation plotting and analysis.
+Standard Responsibilities:
+1. Evaluates base detector across:
+   - In-domain test set: RDD2022 international test split.
+   - Cross-domain test set: Sri Lankan road video test dataset.
+2. Quantifies domain gap degradation:
+   - Overall Delta mAP@50 and Delta mAP@50:95.
+   - Per-class degradation (D00, D10, D20, D40).
+3. Standardized metrics calculation: mAP50, mAP50-95, Precision, Recall, F1-score.
+4. Export reports:
+   - CSV summary table (domain_gap_summary.csv) for dissertation and presentation graphs.
+   - Complete JSON metrics report (domain_gap_report.json).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
+import sys
 from pathlib import Path
-import pandas as pd
+
+# Configure structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("c1.domain_gap_evaluation")
 
 CLASS_NAMES = {
     0: "Longitudinal_Crack_D00",
@@ -33,27 +38,40 @@ CLASS_NAMES = {
 }
 
 
+def auto_detect_device() -> str:
+    """Detect available compute acceleration: CUDA -> Apple Silicon MPS -> CPU."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "0"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Dual-domain evaluation & domain gap benchmark (B0 baseline)."
+        description="Dual-domain evaluation and cross-domain gap benchmark for C1 detector."
     )
     parser.add_argument(
         "--weights",
         type=str,
-        default="ml/c1/weights/b0_base_rdd2022.pt",
-        help="Path to trained base model weights.",
+        default="ml/c1/weights/base_model_rdd2022.pt",
+        help="Path to trained base model checkpoint.",
     )
     parser.add_argument(
         "--rdd-data",
         type=str,
         default="ml/c1/configs/rdd2022_4class.yaml",
-        help="Dataset YAML config for RDD2022.",
+        help="Path to RDD2022 dataset YAML config.",
     )
     parser.add_argument(
         "--srilanka-data",
         type=str,
         default="ml/c1/configs/srilanka_test.yaml",
-        help="Dataset YAML config for Sri Lankan test dataset.",
+        help="Path to Sri Lankan test dataset YAML config.",
     )
     parser.add_argument(
         "--imgsz",
@@ -65,25 +83,25 @@ def parse_args() -> argparse.Namespace:
         "--conf",
         type=float,
         default=0.25,
-        help="Confidence threshold.",
+        help="Detection confidence threshold.",
     )
     parser.add_argument(
         "--iou",
         type=float,
         default=0.50,
-        help="IoU threshold.",
+        help="Non-Maximum Suppression (NMS) IoU threshold.",
     )
     parser.add_argument(
         "--device",
         type=str,
-        default="0",
-        help="CUDA device id or 'cpu'.",
+        default="auto",
+        help="Device to evaluate on: 'auto', '0', 'cpu', or 'mps'.",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="ml/c1/runs/domain_eval",
-        help="Directory to save evaluation reports and CSVs.",
+        default="ml/c1/runs/domain_gap_eval",
+        help="Directory to save evaluation reports and plots.",
     )
     return parser.parse_args()
 
@@ -104,7 +122,6 @@ def extract_metrics(val_results) -> dict:
         "Per-Class": {},
     }
 
-    # Per-class AP arrays
     ap50_per_class = val_results.box.ap50
     ap_per_class = val_results.box.ap
     p_per_class = val_results.box.p
@@ -132,18 +149,26 @@ def main() -> None:
     try:
         from ultralytics import YOLO
     except ImportError:
-        print("Error: 'ultralytics' is not installed. Run: uv add ultralytics")
+        logger.error("'ultralytics' is not installed in the environment. Run: uv add ultralytics")
         return
 
     weights_path = Path(args.weights).resolve()
+    # Fallback to legacy b0_base_rdd2022.pt if primary doesn't exist
     if not weights_path.is_file():
-        print(f"Error: Model weights not found at '{weights_path}'")
-        return
+        fallback_path = Path("ml/c1/weights/b0_base_rdd2022.pt").resolve()
+        if fallback_path.is_file():
+            weights_path = fallback_path
+        else:
+            logger.error(f"Model weights not found at '{weights_path}' (or legacy '{fallback_path}')")
+            return
 
-    print("=== Loading Base Model for Dual-Domain Benchmark ===")
-    print(f"Weights     : {weights_path}")
-    print(f"Resolution  : {args.imgsz}x{args.imgsz}")
-    print(f"Thresholds  : IoU={args.iou}, Conf={args.conf}")
+    device = auto_detect_device() if args.device == "auto" else args.device
+
+    logger.info("=== Starting C1 Dual-Domain Benchmark Evaluation ===")
+    logger.info(f"Weights     : {weights_path}")
+    logger.info(f"Resolution  : {args.imgsz}x{args.imgsz}")
+    logger.info(f"Thresholds  : IoU={args.iou}, Conf={args.conf}")
+    logger.info(f"Device      : {device}")
 
     model = YOLO(str(weights_path))
     output_dir = Path(args.output_dir).resolve()
@@ -154,42 +179,42 @@ def main() -> None:
     # 1. In-Domain Evaluation (RDD2022 Test)
     rdd_yaml = Path(args.rdd_data).resolve()
     if rdd_yaml.is_file():
-        print("\n------------------------------------------------------------")
-        print("1. Evaluating on In-Domain International Test Set (RDD2022)")
-        print("------------------------------------------------------------")
+        logger.info("--- Step 1: Evaluating In-Domain (RDD2022 International Test Split) ---")
         rdd_val = model.val(
             data=str(rdd_yaml),
             split="test",
             imgsz=args.imgsz,
             conf=args.conf,
             iou=args.iou,
-            device=args.device,
+            device=device,
             save_json=True,
             plots=True,
             project=str(output_dir),
             name="rdd_test_eval",
         )
         domain_summary["RDD2022_InDomain"] = extract_metrics(rdd_val)
+    else:
+        logger.warning(f"RDD2022 config not found at '{rdd_yaml}'. Skipping in-domain eval.")
 
-    # 2. Target Cross-Domain Evaluation (Sri Lankan Test Set)
+    # 2. Target Domain Evaluation (Sri Lankan Test Set)
     sl_yaml = Path(args.srilanka_data).resolve()
     if sl_yaml.is_file():
-        print("\n------------------------------------------------------------")
-        print("2. Evaluating on Target Cross-Domain Test Set (Sri Lanka)")
-        print("------------------------------------------------------------")
+        logger.info("--- Step 2: Evaluating Target Domain (Sri Lankan Roads Test Set) ---")
         sl_val = model.val(
             data=str(sl_yaml),
             split="test",
             imgsz=args.imgsz,
             conf=args.conf,
             iou=args.iou,
-            device=args.device,
+            device=device,
             save_json=True,
             plots=True,
             project=str(output_dir),
             name="srilanka_test_eval",
         )
         domain_summary["SriLanka_TargetDomain"] = extract_metrics(sl_val)
+    else:
+        logger.warning(f"Sri Lanka config not found at '{sl_yaml}'. Skipping target domain eval.")
 
     # 3. Generate Comparative Report & Domain Gap
     if "RDD2022_InDomain" in domain_summary and "SriLanka_TargetDomain" in domain_summary:
@@ -199,15 +224,14 @@ def main() -> None:
         gap_map50 = ((rdd_m["mAP50"] - sl_m["mAP50"]) / rdd_m["mAP50"]) * 100 if rdd_m["mAP50"] > 0 else 0.0
         gap_map = ((rdd_m["mAP50-95"] - sl_m["mAP50-95"]) / rdd_m["mAP50-95"]) * 100 if rdd_m["mAP50-95"] > 0 else 0.0
 
-        print("\n============================================================")
-        print("          B0 BASELINE: DOMAIN GAP SUMMARY REPORT            ")
-        print("============================================================")
-        print(f"International mAP@50   : {rdd_m['mAP50'] * 100:.2f}%")
-        print(f"Sri Lankan mAP@50      : {sl_m['mAP50'] * 100:.2f}%")
-        print(f"-> Relative Drop (ΔmAP@50) : {gap_map50:.2f}%")
-        print(f"-> Relative Drop (ΔmAP@50:95) : {gap_map:.2f}%")
+        logger.info("============================================================")
+        logger.info("           DOMAIN GAP BENCHMARK SUMMARY REPORT              ")
+        logger.info("============================================================")
+        logger.info(f"International mAP@50     : {rdd_m['mAP50'] * 100:.2f}%")
+        logger.info(f"Sri Lankan mAP@50        : {sl_m['mAP50'] * 100:.2f}%")
+        logger.info(f"-> Relative Drop (ΔmAP@50)   : {gap_map50:.2f}%")
+        logger.info(f"-> Relative Drop (ΔmAP@50:95): {gap_map:.2f}%")
 
-        # Build Per-Class Comparison DataFrame
         rows = []
         for cname in CLASS_NAMES.values():
             rdd_c = domain_summary["RDD2022_InDomain"]["Per-Class"].get(cname, {})
@@ -226,18 +250,28 @@ def main() -> None:
                 "Sri Lanka F1": round(sl_c.get("F1", 0.0), 3),
             })
 
-        df_classes = pd.DataFrame(rows)
-        print("\n--- Per-Class Performance & Degradation ---")
-        print(df_classes.to_string(index=False))
+        try:
+            import pandas as pd
+            df_classes = pd.DataFrame(rows)
+            logger.info("\n--- Per-Class Degradation Table ---")
+            logger.info("\n" + df_classes.to_string(index=False))
 
-        csv_path = output_dir / "b0_per_class_domain_gap.csv"
-        df_classes.to_csv(csv_path, index=False)
-        print(f"\nPer-class domain gap saved to: {csv_path}")
+            csv_path = output_dir / "domain_gap_summary.csv"
+            df_classes.to_csv(csv_path, index=False)
+            logger.info(f"Per-class domain gap saved to: {csv_path}")
+        except ImportError:
+            import csv
+            csv_path = output_dir / "domain_gap_summary.csv"
+            with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+                writer.writeheader()
+                writer.writerows(rows)
+            logger.info(f"Per-class domain gap saved to: {csv_path}")
 
-    # Save complete JSON report
-    report_json = output_dir / "b0_evaluation_report.json"
+    report_json = output_dir / "domain_gap_report.json"
     report_json.write_text(json.dumps(domain_summary, indent=2), encoding="utf-8")
-    print(f"Full evaluation JSON report saved to: {report_json}")
+    logger.info(f"Complete evaluation report JSON saved to: {report_json}")
+    logger.info("=== Domain Gap Evaluation Complete ===")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # RDD2022 4-Class International Road Damage Dataset Configuration
 # Standard 4 classes: D00 (Longitudinal), D10 (Transverse), D20 (Alligator), D40 (Pothole)
 
-path: ../data/RDD_SPLIT_4CLASS  # root dataset path (relative to execution dir or absolute)
+path: ../data/rdd_cleaned  # root dataset path (relative to execution dir or absolute)
 train: train/images             # train images (relative to path)
 val: val/images                 # val images (relative to path)
 test: test/images               # test images (relative to path)

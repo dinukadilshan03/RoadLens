@@ -1,27 +1,44 @@
-"""Prepare 4-class RDD2022 dataset for training.
+"""Data Cleaning and 4-Class Sanitization Pipeline for C1 (RDD2022).
 
-Key Refinements:
-1. Filters out conversion-specific Class 4 ("Other corruption"), retaining only the 4 official
-   RDD classes: D00 (0), D10 (1), D20 (2), D40 (3).
-2. Cleans corrupted/out-of-bounds/zero-area bounding boxes.
-3. Supports 3 storage modes:
-   - 'symlink' (default on Unix/macOS): Instant, zero extra disk usage.
-   - 'index' (creates train.txt, val.txt, test.txt pointing directly to source images + writes clean labels).
-   - 'copy' (for Windows or external filesystems without symlink support).
-4. Tracks and exports granular provenance statistics:
-   - Before vs. after class distribution.
-   - Country-wise sample and defect distribution across splits.
-   - Saves provenance report as JSON/CSV for research documentation.
+Standard Responsibilities:
+1. Filters out conversion-specific Class 4 ("Other corruption"), standardizing strictly
+   on the 4 official RDD evaluation classes:
+   - Class 0: Longitudinal Crack (D00)
+   - Class 1: Transverse Crack (D10)
+   - Class 2: Alligator Crack (D20)
+   - Class 3: Pothole (D40)
+2. Sanitizes bounding boxes:
+   - Validates coordinates and dimensions.
+   - Clips bounding box coordinates touching or slightly exceeding image borders [0.0, 1.0].
+   - Filters out degenerate or sub-threshold noise boxes (width/height < min_box_dim).
+3. Flexible storage modes:
+   - 'symlink' (default): Zero duplicate disk usage on Unix/macOS.
+   - 'index': Generates split .txt manifests directly referencing source images.
+   - 'copy': Deep copies files (for external filesystems or OS environments without symlink support).
+4. Full provenance tracking:
+   - Logs country-wise distributions, valid vs. dropped detections, and empty background frames.
+   - Outputs a structured provenance_report.json for research documentation.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import shutil
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+
+# Configure structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("c1.data_cleaning")
 
 CLASS_NAMES = {
     0: "Longitudinal_Crack_D00",
@@ -33,36 +50,37 @@ CLASS_NAMES = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Filter RDD2022 dataset to 4 core classes, clean bboxes, and log provenance."
+        description="Clean RDD2022 dataset to 4 core distress classes, sanitize bboxes, and track provenance."
     )
     parser.add_argument(
         "--source-dir",
         type=Path,
         default=Path("ml/c1/data/RDD_SPLIT"),
-        help="Path to source RDD_SPLIT dataset containing train, val, test splits.",
+        help="Path to source RDD_SPLIT dataset directory (containing train, val, test splits).",
     )
     parser.add_argument(
         "--target-dir",
         type=Path,
-        default=Path("ml/c1/data/RDD_SPLIT_4CLASS"),
-        help="Target directory to write cleaned 4-class dataset.",
+        default=Path("ml/c1/data/rdd_cleaned"),
+        help="Target directory to output cleaned 4-class dataset.",
     )
     parser.add_argument(
         "--mode",
         choices=["symlink", "index", "copy"],
         default="symlink",
-        help="Storage strategy: 'symlink' (zero disk copy), 'index' (YOLO txt lists), or 'copy'.",
+        help="Dataset construction mode: 'symlink' (instant, zero disk cost), 'index' (txt manifest), or 'copy'.",
     )
     parser.add_argument(
         "--min-box-dim",
         type=float,
         default=0.002,
-        help="Minimum normalized width and height threshold to filter zero/near-zero noise boxes.",
+        help="Minimum normalized width and height threshold to filter zero or near-zero noise boxes.",
     )
     return parser.parse_args()
 
 
 def extract_country(stem: str) -> str:
+    """Extract country prefix from RDD image filename stem."""
     tokens = stem.split("_")
     if tokens[:2] == ["United", "States"]:
         return "United States"
@@ -70,6 +88,10 @@ def extract_country(stem: str) -> str:
 
 
 def sanitize_line(line: str, min_box_dim: float) -> tuple[int, float, float, float, float] | None:
+    """Validate, clean, and clip a single YOLO annotation line.
+    
+    Returns (class_id, xc, yc, w, h) if valid, or None if invalid/discarded.
+    """
     parts = line.strip().split()
     if not parts or len(parts) < 5:
         return None
@@ -79,19 +101,35 @@ def sanitize_line(line: str, min_box_dim: float) -> tuple[int, float, float, flo
     except (ValueError, IndexError):
         return None
 
-    # Filter out conversion-specific class 4; keep only core RDD classes 0, 1, 2, 3
+    # Filter out conversion-specific class 4; retain core classes 0, 1, 2, 3
     if class_id not in {0, 1, 2, 3}:
         return None
 
-    # Out-of-bounds check (center coordinates must lie strictly inside [0, 1])
+    # Center sanity check: center must lie within reasonable image bounds
     if not (0.0 <= x_center <= 1.0 and 0.0 <= y_center <= 1.0):
         return None
 
-    # Area & dimension sanity check (must exceed minimum dimension threshold)
-    if not (min_box_dim <= width <= 1.0 and min_box_dim <= height <= 1.0):
+    # Positive dimensions check
+    if width <= 0.0 or height <= 0.0:
         return None
 
-    return class_id, x_center, y_center, width, height
+    # Clip bounding box edges to [0.0, 1.0] boundary
+    x1 = max(0.0, x_center - width / 2.0)
+    y1 = max(0.0, y_center - height / 2.0)
+    x2 = min(1.0, x_center + width / 2.0)
+    y2 = min(1.0, y_center + height / 2.0)
+
+    clipped_w = x2 - x1
+    clipped_h = y2 - y1
+
+    # Filter degenerated or sub-threshold boxes
+    if clipped_w < min_box_dim or clipped_h < min_box_dim:
+        return None
+
+    clipped_xc = x1 + clipped_w / 2.0
+    clipped_yc = y1 + clipped_h / 2.0
+
+    return class_id, clipped_xc, clipped_yc, clipped_w, clipped_h
 
 
 def process_split(
@@ -101,6 +139,7 @@ def process_split(
     mode: str,
     min_box_dim: float,
 ) -> dict:
+    """Process, clean, and record provenance for a single dataset split."""
     src_images = source_dir / split / "images"
     src_labels = source_dir / split / "labels"
     dst_images = target_dir / split / "images"
@@ -113,10 +152,10 @@ def process_split(
     image_paths_for_index: list[str] = []
     image_extensions = {".jpg", ".jpeg", ".png"}
 
-    country_image_counts = Counter()
-    country_class_counts = defaultdict(Counter)
-    original_class_counts = Counter()
-    cleaned_class_counts = Counter()
+    country_image_counts: Counter[str] = Counter()
+    country_class_counts: dict[str, Counter[int]] = defaultdict(Counter)
+    original_class_counts: Counter[int] = Counter()
+    cleaned_class_counts: Counter[int] = Counter()
 
     stats = {
         "images": 0,
@@ -130,10 +169,13 @@ def process_split(
         "cleaned_class_counts": cleaned_class_counts,
     }
 
-    for img_path in sorted(src_images.iterdir()):
-        if img_path.suffix.lower() not in image_extensions:
-            continue
+    image_files = sorted([p for p in src_images.iterdir() if p.suffix.lower() in image_extensions])
+    total_images = len(image_files)
+    logger.info(f"Split '{split}': Found {total_images:,} images to process.")
 
+    log_interval = max(1000, total_images // 5)
+
+    for idx, img_path in enumerate(image_files, start=1):
         stats["images"] += 1
         country = extract_country(img_path.stem)
         country_image_counts[country] += 1
@@ -189,6 +231,9 @@ def process_split(
 
         dst_label_file.write_text("".join(kept_lines), encoding="utf-8")
 
+        if idx % log_interval == 0 or idx == total_images:
+            logger.info(f"Split '{split}': Processed {idx:,}/{total_images:,} images ({idx / total_images * 100:.1f}%)")
+
     if mode == "index":
         index_file = target_dir / f"{split}.txt"
         index_file.write_text("\n".join(image_paths_for_index) + "\n", encoding="utf-8")
@@ -202,26 +247,28 @@ def main() -> None:
     target_dir = args.target_dir.resolve()
 
     if not source_dir.is_dir():
-        print(f"Error: Source directory '{source_dir}' does not exist.")
+        logger.error(f"Source directory '{source_dir}' does not exist.")
         return
 
-    print("=== RDD2022 4-Class Dataset Preparation & Provenance Pipeline ===")
-    print(f"Source: {source_dir}")
-    print(f"Target: {target_dir}")
-    print(f"Mode: {args.mode} | Min Box Dim: {args.min_box_dim}")
+    logger.info("=== Starting C1 Data Cleaning & 4-Class Sanitization ===")
+    logger.info(f"Source Directory : {source_dir}")
+    logger.info(f"Target Directory : {target_dir}")
+    logger.info(f"Storage Mode     : {args.mode}")
+    logger.info(f"Min Box Dim      : {args.min_box_dim}")
 
     target_dir.mkdir(parents=True, exist_ok=True)
     summary_report = {}
 
     for split in ["train", "val", "test"]:
         if (source_dir / split).is_dir():
-            print(f"\nProcessing Split: '{split}'...")
+            logger.info(f"--- Processing Split: '{split}' ---")
             stats = process_split(split, source_dir, target_dir, args.mode, args.min_box_dim)
-            print(f"  Images: {stats['images']:,}")
-            print(f"  Valid 4-Class Boxes: {stats['valid_boxes']:,}")
-            print(f"  Dropped Class 4 Boxes: {stats['dropped_class4_boxes']:,}")
-            print(f"  Filtered Invalid/Near-Zero Boxes: {stats['invalid_boxes']:,}")
-            print(f"  Empty Labels (Backgrounds): {stats['empty_labels']:,}")
+            logger.info(f"Split '{split}' completed:")
+            logger.info(f"  Images processed       : {stats['images']:,}")
+            logger.info(f"  Valid 4-class boxes    : {stats['valid_boxes']:,}")
+            logger.info(f"  Dropped Class 4 boxes  : {stats['dropped_class4_boxes']:,}")
+            logger.info(f"  Filtered invalid boxes : {stats['invalid_boxes']:,}")
+            logger.info(f"  Empty label frames     : {stats['empty_labels']:,}")
 
             summary_report[split] = {
                 "images": stats["images"],
@@ -243,8 +290,8 @@ def main() -> None:
     # Save complete provenance report
     report_path = target_dir / "provenance_report.json"
     report_path.write_text(json.dumps(summary_report, indent=2), encoding="utf-8")
-    print(f"\nProvenance report saved to: {report_path}")
-    print("=== Preparation Complete ===")
+    logger.info(f"Provenance report saved to: {report_path}")
+    logger.info("=== Data Cleaning Complete ===")
 
 
 if __name__ == "__main__":
