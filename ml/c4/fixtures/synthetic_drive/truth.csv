@@ -1,0 +1,6 @@
+start_ms,end_ms,road_type
+0,10000,stationary
+10000,30000,good
+30000,45000,regular
+45000,60000,bad
+60000,75000,good

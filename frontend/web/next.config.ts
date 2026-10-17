@@ -6,7 +6,12 @@ const nextConfig: NextConfig = {
   // Production rewrites are generated at build time.
   async rewrites() {
     const backendUrl = process.env.BACKEND_URL || "http://localhost:8000";
-    return [{ source: "/api/:path*", destination: `${backendUrl}/:path*` }];
+    return [
+      // Versioned domain API: forwarded unchanged (/api/v1/... -> backend /api/v1/...).
+      { source: "/api/v1/:path*", destination: `${backendUrl}/api/v1/:path*` },
+      // Existing behaviour for other paths, e.g. /api/health -> backend /health.
+      { source: "/api/:path*", destination: `${backendUrl}/:path*` },
+    ];
   },
 };
 
