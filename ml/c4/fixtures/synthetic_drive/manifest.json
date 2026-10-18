@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "device": "synthetic-phone",
+  "platform": "synthetic",
+  "axis_frame": "device",
+  "gravity_included": true,
+  "sample_rate_hz": 100,
+  "gps_rate_hz": 1,
+  "clock_origin": "capture_start",
+  "mount": "dashboard"
+}

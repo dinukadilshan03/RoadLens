@@ -1,0 +1,4 @@
+# Model weights are deployed separately (trusted asset store), never committed.
+*
+!.gitignore
+!README.md

@@ -18,6 +18,10 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # Copy application packages (ML datasets, runs, and weights excluded via .dockerignore)
+# Component 4 (road roughness) inference dependencies: scipy, scikit-learn, xgboost, ...
+COPY ml/c4/requirements.lock ./ml/c4/requirements.lock
+RUN uv pip install --no-cache --python /app/.venv/bin/python -r ml/c4/requirements.lock
+
 COPY backend ./backend
 COPY ml ./ml
 COPY shared ./shared

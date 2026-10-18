@@ -47,3 +47,12 @@ frontend/web/.next
 # Documentation and tests (not needed inside application runtime container)
 docs
 tests
+notebooks
+.env
+.env.*
+.tmp-uv-cache
+
+# C4 local run folders and generated demo models
+ml/c4/runs
+ml/c4/models/demo
+ml/c4/models/demo_out

@@ -26,6 +26,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-roadlens}
       POSTGRES_USER: ${POSTGRES_USER:-roadlens}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      C4_STORAGE_DIR: /data/c4
+    volumes:
+      - c4_data:/data/c4
     depends_on:
       db:
         condition: service_healthy
@@ -51,3 +54,4 @@ services:
 
 volumes:
   postgres_data:
+  c4_data:
