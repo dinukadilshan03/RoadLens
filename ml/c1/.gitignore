@@ -1,5 +1,16 @@
-/data
-/weights/*.pt
-/weights/*.onnx
-/weights/*.engine
-/runs/
+# Local datasets (preserve directory scaffold via .gitkeep)
+/data/*
+!/data/.gitkeep
+
+# Model weights & checkpoints
+/weights/*
+!/weights/.gitkeep
+
+# Training run artifacts, curves, and validation plots
+/runs/*
+!/runs/.gitkeep
+
+# ML caches and experiment tracking
+*.cache
+.cache/
+wandb/

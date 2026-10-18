@@ -1,0 +1,15 @@
+# RoadLens C1: Base Model (B0) Dataset Configuration
+# Defines the multi-country international road damage dataset for baseline detector training.
+# Standardized across 4 core pavement distress classes.
+
+path: ../data/rdd_cleaned       # Dataset root directory (relative to this config file or absolute)
+train: train/images             # Training images directory (relative to path)
+val: val/images                 # Validation images directory (relative to path)
+test: test/images               # Test images directory (relative to path)
+
+# Target Distress Classes
+names:
+  0: Longitudinal_Crack_D00     # Linear cracks running parallel to road heading
+  1: Transverse_Crack_D10       # Linear cracks running perpendicular to road heading
+  2: Alligator_Crack_D20        # Interconnected polygonal fatigue crack networks
+  3: Pothole_D40                # Structural bowl-shaped road surface depressions
