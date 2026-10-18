@@ -58,14 +58,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--weights",
         type=str,
-        default="ml/c1/weights/base_model_rdd2022.pt",
+        default="ml/c1/weights/base_model_b0.pt",
         help="Path to trained base model checkpoint.",
     )
     parser.add_argument(
+        "--base-data",
         "--rdd-data",
+        dest="base_data",
         type=str,
-        default="ml/c1/configs/rdd2022_4class.yaml",
-        help="Path to RDD2022 dataset YAML config.",
+        default="ml/c1/configs/base_model_b0.yaml",
+        help="Path to base dataset YAML config (e.g. ml/c1/configs/base_model_b0.yaml).",
     )
     parser.add_argument(
         "--srilanka-data",
@@ -153,13 +155,19 @@ def main() -> None:
         return
 
     weights_path = Path(args.weights).resolve()
-    # Fallback to legacy b0_base_rdd2022.pt if primary doesn't exist
     if not weights_path.is_file():
-        fallback_path = Path("ml/c1/weights/b0_base_rdd2022.pt").resolve()
-        if fallback_path.is_file():
-            weights_path = fallback_path
+        # Check standard fallback locations
+        fallbacks = [
+            Path("ml/c1/weights/base_model_b0.pt").resolve(),
+            Path("ml/c1/weights/b0.pt").resolve(),
+            Path("ml/c1/weights/base_model_rdd2022.pt").resolve(),
+            Path("ml/c1/weights/b0_base_rdd2022.pt").resolve(),
+        ]
+        found = next((f for f in fallbacks if f.is_file()), None)
+        if found:
+            weights_path = found
         else:
-            logger.error(f"Model weights not found at '{weights_path}' (or legacy '{fallback_path}')")
+            logger.error(f"Model weights not found at '{weights_path}'")
             return
 
     device = auto_detect_device() if args.device == "auto" else args.device
@@ -176,12 +184,17 @@ def main() -> None:
 
     domain_summary = {}
 
-    # 1. In-Domain Evaluation (RDD2022 Test)
-    rdd_yaml = Path(args.rdd_data).resolve()
-    if rdd_yaml.is_file():
-        logger.info("--- Step 1: Evaluating In-Domain (RDD2022 International Test Split) ---")
-        rdd_val = model.val(
-            data=str(rdd_yaml),
+    # 1. In-Domain Evaluation (Base Dataset Test)
+    base_yaml = Path(args.base_data).resolve()
+    if not base_yaml.is_file():
+        legacy_base = Path("ml/c1/configs/rdd2022_4class.yaml").resolve()
+        if legacy_base.is_file():
+            base_yaml = legacy_base
+
+    if base_yaml.is_file():
+        logger.info("--- Step 1: Evaluating In-Domain (Base Dataset Test Split) ---")
+        base_val = model.val(
+            data=str(base_yaml),
             split="test",
             imgsz=args.imgsz,
             conf=args.conf,

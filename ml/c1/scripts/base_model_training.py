@@ -48,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data",
         type=str,
-        default="ml/c1/configs/rdd2022_4class.yaml",
+        default="ml/c1/configs/base_model_b0.yaml",
         help="Path to dataset YAML config.",
     )
     parser.add_argument(
@@ -108,7 +108,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--name",
         type=str,
-        default="base_model_rdd2022",
+        default="base_model_b0",
         help="Experiment name.",
     )
     parser.add_argument(
@@ -135,11 +135,16 @@ def main() -> None:
         return
 
     data_path = Path(args.data).resolve()
-    hyp_path = Path(args.hyp).resolve() if args.hyp else None
-
     if not data_path.is_file():
-        logger.error(f"Dataset configuration file not found at '{data_path}'")
-        return
+        # Fallback to legacy config if present
+        fallback_data = Path("ml/c1/configs/rdd2022_4class.yaml").resolve()
+        if fallback_data.is_file():
+            data_path = fallback_data
+        else:
+            logger.error(f"Dataset configuration file not found at '{data_path}'")
+            return
+
+    hyp_path = Path(args.hyp).resolve() if args.hyp else None
 
     device = auto_detect_device() if args.device == "auto" else args.device
 
@@ -181,10 +186,11 @@ def main() -> None:
     if best_pt.is_file():
         weights_dir = Path("ml/c1/weights").resolve()
         weights_dir.mkdir(parents=True, exist_ok=True)
-        dest_pt = weights_dir / "base_model_rdd2022.pt"
+        dest_pt = weights_dir / "base_model_b0.pt"
         shutil.copy2(best_pt, dest_pt)
-        # Also maintain legacy alias
-        shutil.copy2(best_pt, weights_dir / "b0_base_rdd2022.pt")
+        # Keep clean aliases for compatibility
+        shutil.copy2(best_pt, weights_dir / "b0.pt")
+        shutil.copy2(best_pt, weights_dir / "base_model_rdd2022.pt")
         logger.info(f"Best model weights successfully saved to: {dest_pt}")
 
     logger.info("=== Base Model Training Completed Successfully ===")

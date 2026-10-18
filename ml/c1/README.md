@@ -16,7 +16,7 @@ ml/c1/
 ├── .gitignore                     # Ignores weights (*.pt, *.onnx), runs/, and raw datasets
 │
 ├── configs/                       # Dataset & experiment configurations
-│   ├── rdd2022_4class.yaml        # Base model training config (RDD2022 international)
+│   ├── base_model_b0.yaml         # Base model training config (B0 international dataset)
 │   ├── srilanka_test.yaml         # Target domain evaluation config (Sri Lankan roads)
 │   ├── hyp_base.yaml              # Hyperparameter configuration for road distress detection
 │   └── srilanka_finetune.yaml     # (Planned) Domain adaptation / fine-tuning config
@@ -35,6 +35,7 @@ ml/c1/
 │
 ├── notebooks/                     # Exploratory analysis & research reporting
 │   ├── data_exploration.ipynb     # 3-stage RDD2022 exploratory data analysis
+│   ├── train_base_model_colab.ipynb # Base model training on Google Colab (GPU)
 │   └── domain_gap_analysis.ipynb  # (Planned) Cross-domain gap charts & failure analysis
 │
 ├── weights/                       # Model checkpoints (.pt, .onnx) - git-ignored
@@ -58,12 +59,13 @@ python ml/c1/scripts/data_cleaning.py \
 ```
 
 ### 2. Base Model Training
-Train the baseline YOLOv8m detector on 4-class RDD2022:
+Train the baseline YOLOv8m detector (B0) on 4 core distress classes:
 ```bash
 python ml/c1/scripts/base_model_training.py \
-    --data ml/c1/configs/rdd2022_4class.yaml \
+    --data ml/c1/configs/base_model_b0.yaml \
     --hyp ml/c1/configs/hyp_base.yaml \
     --model yolov8m.pt \
+    --name base_model_b0 \
     --epochs 50 \
     --imgsz 800 \
     --batch 16
@@ -73,8 +75,8 @@ python ml/c1/scripts/base_model_training.py \
 Measure the cross-domain degradation ($\Delta mAP$) on Sri Lankan test data:
 ```bash
 python ml/c1/scripts/domain_gap_evaluation.py \
-    --weights ml/c1/weights/base_model_rdd2022.pt \
-    --rdd-data ml/c1/configs/rdd2022_4class.yaml \
+    --weights ml/c1/weights/base_model_b0.pt \
+    --base-data ml/c1/configs/base_model_b0.yaml \
     --srilanka-data ml/c1/configs/srilanka_test.yaml \
     --imgsz 800
 ```
