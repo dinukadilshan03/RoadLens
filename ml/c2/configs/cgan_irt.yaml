@@ -1,0 +1,53 @@
+# Stage 1: Pix2Pix cGAN Training Configuration (IRT Pavement Dataset)
+# Component C2: Software Emulated Linear Transposed Cross Attention Framework
+# Researcher: Methma C A N (IT23245860) | Group: J26-DS-309
+
+dataset:
+  name: "IRT_Pavement"
+  total_pairs: 448
+  rgb_subfolder: "RGB"
+  thermal_subfolder: "thermal"
+  image_size: 256
+  train_split: 0.8
+  val_split: 0.2
+  split_strategy: "route_based_geographical"
+
+model:
+  generator:
+    architecture: "UNetGenerator256"
+    in_channels: 3
+    out_channels: 1
+    norm: "InstanceNorm2d"
+    activation: "Tanh"
+  discriminator:
+    architecture: "PatchGAN70x70"
+    in_channels: 4
+    patch_size: [30, 30]
+    norm: "InstanceNorm2d"
+
+training:
+  epochs: 200
+  decay_epoch: 100
+  batch_size: 16
+  learning_rate: 0.0002
+  beta1: 0.5
+  beta2: 0.999
+  lambda_l1: 100.0
+  gan_mode: "lsgan" # Least Squares GAN for training stability
+
+augmentation:
+  synchronous_spatial:
+    random_hflip: 0.5
+    random_vflip: 0.5
+    random_rot90: 0.5
+  asymmetric_optical_noise:
+    synthetic_shadow: 0.5
+    solar_glare: 0.4
+
+evaluation:
+  eval_interval_epochs: 5
+  metrics:
+    - "MAE"
+    - "PSNR"
+    - "SSIM"
+  export_best_criterion: "SSIM"

@@ -1,0 +1,19 @@
+# Local datasets (prevent accidental git commits of large image archives)
+/data/*
+!/data/.gitkeep
+!/data/__init__.py
+!/data/irt_dataset.py
+
+# Model weights & checkpoints
+/weights/*
+!/weights/.gitkeep
+
+# Experiment logs and curves
+/runs/*
+/experiments/*
+!/runs/.gitkeep
+
+# Caches
+*.cache
+.cache/
+wandb/
