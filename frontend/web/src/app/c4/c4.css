@@ -1,0 +1,95 @@
+/* Component 4 (road roughness) page styles. Everything is scoped under .c4 so other RoadLens pages are unaffected. */
+
+@font-face {
+  font-family: "Overpass C4";
+  src: url("./fonts/Overpass-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.c4 {
+  /* concrete, asphalt and road-sign blue; condition colours follow the usual green / amber / red scale */
+  --c4-bg: #eceeea;
+  --c4-surface: #f8f9f7;
+  --c4-line: #cfd4cc;
+  --c4-ink: #262b2f;
+  --c4-muted: #5c656b;
+  --c4-sign: #1c5da8;
+  --c4-sign-ink: #ffffff;
+  --c4-good: #2e9d5b;
+  --c4-regular: #e0a019;
+  --c4-bad: #d23f2f;
+  --c4-none: #aab1ab;
+  --c4-danger-bg: #fbe9e6;
+  --c4-warn-bg: #fdf3dc;
+  --c4-header: #262b2f;
+  --c4-header-ink: #eceeea;
+
+  font-family: "Overpass C4", "Overpass", system-ui, sans-serif;
+  background: var(--c4-bg);
+  color: var(--c4-ink);
+  font-feature-settings: "tnum" 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .c4 {
+    --c4-bg: #1b1f22;
+    --c4-surface: #24292d;
+    --c4-line: #3a4247;
+    --c4-ink: #e7eae5;
+    --c4-muted: #9aa3a8;
+    --c4-sign: #6fa3e2;
+    --c4-sign-ink: #10233a;
+    --c4-none: #5d6660;
+    --c4-danger-bg: #3a2220;
+    --c4-warn-bg: #3a3120;
+    --c4-header: #2b3236;
+    --c4-header-ink: #e7eae5;
+  }
+}
+
+.c4 :focus-visible {
+  outline: 2px solid var(--c4-sign);
+  outline-offset: 2px;
+}
+
+/* the dashed centre line used under the header and on unassessed stretches of the road strip */
+.c4-centre-line {
+  background-image: repeating-linear-gradient(90deg, var(--c4-regular) 0 28px, transparent 28px 46px);
+  height: 3px;
+}
+
+.c4-unassessed {
+  background-image: repeating-linear-gradient(135deg, var(--c4-none) 0 3px, transparent 3px 6px);
+}
+
+/* Leaflet tooltips in the page's type and colours */
+.c4 .leaflet-tooltip {
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c4-ink);
+  background: var(--c4-surface);
+  border: 1px solid var(--c4-line);
+  border-radius: 6px;
+  box-shadow: none;
+}
+.c4 .leaflet-tile-pane {
+  filter: grayscale(0.9) contrast(0.92) brightness(1.04);
+}
+@media (prefers-color-scheme: dark) {
+  .c4 .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) grayscale(0.85) brightness(0.85) contrast(0.9);
+  }
+}
+.c4 .leaflet-container {
+  font-family: inherit;
+  background: var(--c4-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c4 * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

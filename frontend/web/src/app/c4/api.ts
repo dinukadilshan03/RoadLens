@@ -117,10 +117,12 @@ export const api = {
 };
 
 export const CLASS_COLORS: Record<RoughnessClass, string> = {
-  good: "#1a9850",
-  regular: "#e6a100",
-  bad: "#d73027",
+  good: "#2e9d5b",
+  regular: "#e0a019",
+  bad: "#d23f2f",
 };
+
+export const NO_LABEL_COLOR = "#aab1ab";
 
 export const CLASS_LABELS: Record<RoughnessClass, string> = {
   good: "Good",

@@ -1,73 +1,119 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import RoadStrip from "./RoadStrip";
 import SegmentMap, { type MapStyle } from "./SegmentMap";
 import {
   ApiError,
   C4_API,
   CLASS_COLORS,
   CLASS_LABELS,
+  NO_LABEL_COLOR,
   api,
   isActive,
   type LabelCheck,
   type ModelInfo,
   type RoughnessClass,
   type Run,
+  type RunStatus,
   type SegmentCollection,
 } from "./api";
+import { fmtDuration, fmtKm, roadProfile, type RoadProfile } from "./road";
 
 const CLASSES: RoughnessClass[] = ["good", "regular", "bad"];
-const STAGES = ["validate", "sync", "features", "predict", "segments", "done"];
 
-const STATUS_STYLE: Record<string, string> = {
-  queued: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  running: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",
-  succeeded: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  failed: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
-  cancelled: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  rejected: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
+const STAGES: { key: string; label: string }[] = [
+  { key: "validate", label: "Checking the files" },
+  { key: "sync", label: "Aligning the sensors" },
+  { key: "features", label: "Measuring vibration" },
+  { key: "predict", label: "Classifying the road" },
+  { key: "segments", label: "Building road segments" },
+];
+
+const STATUS_TEXT: Record<RunStatus, string> = {
+  queued: "Waiting",
+  running: "Processing",
+  succeeded: "Done",
+  failed: "Failed",
+  cancelled: "Cancelled",
+  rejected: "Rejected",
 };
 
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status] ?? ""}`}>
-      {status}
-    </span>
-  );
-}
-
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function errText(e: unknown) {
   return e instanceof ApiError || e instanceof Error ? e.message : String(e);
 }
 
-// ---------------------------------------------------------------------------------------------
-function UploadForm({ onCreated }: { onCreated: (run: Run) => void }) {
+const btnPrimary =
+  "inline-flex items-center justify-center rounded-md bg-[var(--c4-sign)] px-4 py-2.5 text-sm font-semibold text-[var(--c4-sign-ink)] hover:brightness-110 disabled:opacity-50";
+const btnQuiet =
+  "inline-flex items-center justify-center rounded-md border border-[var(--c4-line)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--c4-bg)] disabled:opacity-50";
+
+function Notice({ tone, children }: { tone: "danger" | "warn"; children: React.ReactNode }) {
+  return (
+    <div
+      role={tone === "danger" ? "alert" : undefined}
+      className={`rounded-md border-l-4 px-3 py-2.5 text-sm ${
+        tone === "danger" ? "border-[var(--c4-bad)] bg-[var(--c4-danger-bg)]" : "border-[var(--c4-regular)] bg-[var(--c4-warn-bg)]"
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------------------------- upload
+function FileSlot({ name, title, hint, accept, required }: { name: string; title: string; hint: string; accept: string; required?: boolean }) {
+  const [file, setFile] = useState<string | null>(null);
+  return (
+    <label className="block cursor-pointer">
+      <input
+        name={name}
+        type="file"
+        accept={accept}
+        required={required}
+        className="peer sr-only"
+        onChange={(e) => setFile(e.currentTarget.files?.[0]?.name ?? null)}
+      />
+      <span
+        className={`flex items-center gap-3 rounded-md border px-3 py-2.5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-[var(--c4-sign)] ${
+          file ? "border-[var(--c4-good)] bg-[var(--c4-surface)]" : "border-dashed border-[var(--c4-line)] hover:border-[var(--c4-muted)]"
+        }`}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">
+            {title}
+            {!required && <span className="font-normal text-[var(--c4-muted)]"> (optional)</span>}
+          </span>
+          <span className={`block text-xs text-[var(--c4-muted)] ${file ? "truncate" : ""}`}>{file ?? hint}</span>
+        </span>
+        <span className="shrink-0 text-xs font-semibold text-[var(--c4-sign)]">{file ? "Change" : "Choose file"}</span>
+      </span>
+    </label>
+  );
+}
+
+function UploadForm({ onCreated, onDemo, demoBusy }: { onCreated: (run: Run) => void; onDemo: () => void; demoBusy: boolean }) {
   const [split, setSplit] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formKey, setFormKey] = useState(0);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
+    const data = new FormData(e.currentTarget);
     for (const [k, v] of Array.from(data.entries())) {
-      if (v instanceof File && v.size === 0) data.delete(k);   // unused optional file inputs
+      if (v instanceof File && v.size === 0) data.delete(k); // unused optional file inputs
     }
     if (!String(data.get("survey_id") ?? "").trim()) data.delete("survey_id");
     setBusy(true);
     setError(null);
     try {
       onCreated(await api.upload(data));
-      form.reset();
+      setFormKey((k) => k + 1); // clears the chosen files
     } catch (err) {
       setError(errText(err));
     } finally {
@@ -75,277 +121,292 @@ function UploadForm({ onCreated }: { onCreated: (run: Run) => void }) {
     }
   }
 
-  const fileCls =
-    "block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 " +
-    "file:text-xs file:font-medium hover:file:bg-zinc-200 dark:file:bg-zinc-800 dark:hover:file:bg-zinc-700";
-
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-xs font-medium">
-        Survey name <span className="font-normal text-zinc-500">(optional)</span>
+    <form key={formKey} onSubmit={submit} className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1">
+        <span className="text-sm font-semibold">Survey name <span className="font-normal text-[var(--c4-muted)]">(optional)</span></span>
         <input
           name="survey_id"
-          placeholder="e.g. galle-road-morning"
+          placeholder="Galle Road, morning"
           maxLength={128}
-          className="rounded-md border border-zinc-300 bg-transparent px-2.5 py-1.5 text-sm font-normal dark:border-zinc-700"
+          className="rounded-md border border-[var(--c4-line)] bg-[var(--c4-surface)] px-3 py-2 text-sm placeholder:text-[var(--c4-muted)]"
         />
       </label>
-      <div className="flex gap-4 text-xs">
-        <label className="flex items-center gap-1.5">
-          <input type="radio" checked={!split} onChange={() => setSplit(false)} /> One IMU file
-        </label>
-        <label className="flex items-center gap-1.5">
-          <input type="radio" checked={split} onChange={() => setSplit(true)} /> Separate acc + gyro
-        </label>
-      </div>
-      {split ? (
-        <>
-          <label className="flex flex-col gap-1 text-xs font-medium">
-            Accelerometer CSV
-            <input key="acc" name="acc" type="file" accept=".csv,text/csv" required className={fileCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-medium">
-            Gyroscope CSV
-            <input key="gyro" name="gyro" type="file" accept=".csv,text/csv" required className={fileCls} />
-          </label>
-        </>
-      ) : (
-        <label className="flex flex-col gap-1 text-xs font-medium">
-          IMU CSV <span className="font-normal text-zinc-500">timestamp_ms, ax…az (m/s²), gx…gz (rad/s)</span>
-          <input key="imu" name="imu" type="file" accept=".csv,text/csv" required className={fileCls} />
-        </label>
-      )}
-      <label className="flex flex-col gap-1 text-xs font-medium">
-        GPS CSV <span className="font-normal text-zinc-500">timestamp_ms, latitude, longitude, accuracy_m, speed_mps</span>
-        <input name="gps" type="file" accept=".csv,text/csv" required className={fileCls} />
-      </label>
-      <label className="flex flex-col gap-1 text-xs font-medium">
-        Sensor manifest <span className="font-normal text-zinc-500">JSON, must include &quot;gravity_included&quot;: true</span>
-        <input name="manifest" type="file" accept=".json,application/json" required className={fileCls} />
-      </label>
-      <label className="flex flex-col gap-1 text-xs font-medium">
-        Reference labels <span className="font-normal text-zinc-500">optional · timestamp_ms, road_condition — to compare with the model</span>
-        <input name="labels" type="file" accept=".csv,text/csv" className={fileCls} />
-      </label>
-      {error && <p className="rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-      >
-        {busy ? "Uploading…" : "Upload and assess"}
+
+      <fieldset className="flex min-w-0 flex-col gap-2">
+        <legend className="mb-1.5 text-sm font-semibold">Motion sensors</legend>
+        <div className="mb-1 flex rounded-md border border-[var(--c4-line)] p-0.5 text-xs" role="radiogroup">
+          {[
+            [false, "One file"],
+            [true, "Two files"],
+          ].map(([v, text]) => (
+            <button
+              key={String(v)}
+              type="button"
+              role="radio"
+              aria-checked={split === v}
+              onClick={() => setSplit(v as boolean)}
+              className={`flex-1 rounded px-2 py-1.5 ${split === v ? "bg-[var(--c4-ink)] text-[var(--c4-bg)]" : "text-[var(--c4-muted)]"}`}
+            >
+              {text as string}
+            </button>
+          ))}
+        </div>
+        {split ? (
+          <>
+            <FileSlot key="acc" name="acc" title="Accelerometer" hint="CSV in m/s², gravity included" accept=".csv,text/csv" required />
+            <FileSlot key="gyro" name="gyro" title="Gyroscope" hint="CSV in rad/s" accept=".csv,text/csv" required />
+          </>
+        ) : (
+          <FileSlot key="imu" name="imu" title="Accelerometer and gyroscope" hint="CSV with acceleration (m/s²) and rotation (rad/s)" accept=".csv,text/csv" required />
+        )}
+      </fieldset>
+      <FileSlot name="gps" title="GPS track" hint="CSV with latitude, longitude and speed" accept=".csv,text/csv" required />
+      <FileSlot name="manifest" title="Sensor manifest" hint="JSON describing the phone and its sensors" accept=".json,application/json" required />
+      <FileSlot name="labels" title="Reference labels" hint="CSV of known road condition, to check the model" accept=".csv,text/csv" />
+
+      {error && <Notice tone="danger">{error}</Notice>}
+      <button type="submit" disabled={busy} className={btnPrimary}>
+        {busy ? "Uploading…" : "Assess the road"}
       </button>
+      <button type="button" onClick={onDemo} disabled={demoBusy} className={btnQuiet}>
+        {demoBusy ? "Starting…" : "Try a sample drive"}
+      </button>
+      <p className="text-xs text-[var(--c4-muted)]">The sample is a 75-second synthetic drive in Colombo.</p>
     </form>
   );
 }
 
-// ---------------------------------------------------------------------------------------------
-function Evaluation({ lc }: { lc: LabelCheck }) {
-  if (!lc.windows || !lc.confusion_matrix || !lc.per_class) {
-    return <p className="rounded-md bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">{lc.note}</p>;
-  }
-  const cm = lc.confusion_matrix.rows_true_cols_pred;
-  const max = Math.max(...cm.flat(), 1);
+// --------------------------------------------------------------------------------------------- survey list
+function ConditionBar({ run, className = "h-1.5" }: { run: Run; className?: string }) {
+  const s = run.summary?.segments.seconds_by_class;
+  const total = s ? CLASSES.reduce((a, c) => a + (s[c] ?? 0), 0) : 0;
+  if (!s || !total) return <div className={`${className} bg-[var(--c4-line)]`} />;
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h3 className="text-sm font-semibold">Model vs reference labels</h3>
-        <span className="text-[11px] text-zinc-500">{lc.windows} windows · {lc.method}</span>
+    <div className={`flex ${className} overflow-hidden`}>
+      {CLASSES.map((c) => (s[c] ? <div key={c} style={{ width: `${(100 * s[c]) / total}%`, background: CLASS_COLORS[c] }} /> : null))}
+    </div>
+  );
+}
+
+function SurveyList({ runs, selectedId, onSelect }: { runs: Run[]; selectedId?: string; onSelect: (r: Run) => void }) {
+  if (!runs.length) return <p className="text-sm text-[var(--c4-muted)]">No surveys yet. Upload a recording to start.</p>;
+  return (
+    <ul className="flex flex-col">
+      {runs.map((r) => {
+        const on = r.run_id === selectedId;
+        return (
+          <li key={r.run_id}>
+            <button
+              onClick={() => onSelect(r)}
+              aria-current={on ? "true" : undefined}
+              className={`w-full border-l-4 py-2.5 pl-3 pr-2 text-left ${
+                on ? "border-[var(--c4-sign)] bg-[var(--c4-surface)]" : "border-transparent hover:bg-[var(--c4-surface)]"
+              }`}
+            >
+              <span className="flex items-baseline gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{r.survey_id}</span>
+                {r.status !== "succeeded" && (
+                  <span className={`shrink-0 text-xs ${r.status === "failed" || r.status === "rejected" ? "text-[var(--c4-bad)]" : "text-[var(--c4-muted)]"}`}>
+                    {STATUS_TEXT[r.status]}
+                  </span>
+                )}
+              </span>
+              <span className="mt-0.5 block text-xs text-[var(--c4-muted)]">
+                {fmtDate(r.created_at)}
+                {r.summary ? `, ${fmtDuration(r.summary.input.duration_s)}` : ""}
+              </span>
+              {r.status === "succeeded" && <ConditionBar run={r} className="mt-2 h-1" />}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// --------------------------------------------------------------------------------------------- results
+function Progress({ run }: { run: Run }) {
+  const idx = run.stage ? STAGES.findIndex((s) => s.key === run.stage) : -1;
+  return (
+    <section className="flex flex-col gap-4 rounded-md border border-[var(--c4-line)] bg-[var(--c4-surface)] p-5">
+      <p className="text-base font-semibold">{run.status === "queued" ? "Waiting to start" : "Assessing the road"}</p>
+      <ol className="flex flex-col gap-2">
+        {STAGES.map((s, i) => {
+          const state = i < idx ? "done" : i === idx ? "now" : "next";
+          return (
+            <li key={s.key} className="flex items-center gap-3 text-sm">
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                  state === "done"
+                    ? "bg-[var(--c4-good)] text-white"
+                    : state === "now"
+                      ? "bg-[var(--c4-sign)] text-[var(--c4-sign-ink)]"
+                      : "border border-[var(--c4-line)] text-[var(--c4-muted)]"
+                }`}
+              >
+                {state === "done" ? "✓" : i + 1}
+              </span>
+              <span className={state === "next" ? "text-[var(--c4-muted)]" : ""}>{s.label}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <button onClick={() => api.cancel(run.run_id).catch(() => undefined)} className="self-start text-sm text-[var(--c4-muted)] underline">
+        Cancel
+      </button>
+    </section>
+  );
+}
+
+function ConditionSummary({ profile, run }: { profile: RoadProfile; run: Run }) {
+  const total = profile.totalKm || 1;
+  return (
+    <section aria-label="Road condition totals" className="grid grid-cols-3 border-y border-[var(--c4-line)]">
+      {CLASSES.map((c, i) => (
+        <div key={c} className={`px-3 py-4 sm:px-4 ${i ? "border-l border-[var(--c4-line)]" : ""}`}>
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <span className="inline-block h-3 w-3" style={{ background: CLASS_COLORS[c] }} />
+            {CLASS_LABELS[c]}
+          </div>
+          <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+            {fmtKm(profile.kmByClass[c])}
+            <span className="ml-1 text-base font-semibold text-[var(--c4-muted)]">km</span>
+          </p>
+          <p className="text-sm text-[var(--c4-muted)]">
+            {Math.round((100 * profile.kmByClass[c]) / total)}% of the route, {run.summary?.segments.by_class[c] ?? 0} segments
+          </p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function Evaluation({ lc }: { lc: LabelCheck }) {
+  if (!lc.windows || !lc.confusion_matrix || !lc.per_class) return <Notice tone="warn">{lc.note}</Notice>;
+  const cm = lc.confusion_matrix.rows_true_cols_pred;
+  const rowSum = cm.map((r) => r.reduce((a, b) => a + b, 0) || 1);
+  return (
+    <section className="flex flex-col gap-4">
+      <div>
+        <h3 className="text-base font-semibold">How the model compares with the reference labels</h3>
+        <p className="text-sm text-[var(--c4-muted)]">
+          Checked on {lc.windows} two-second windows where the label is clear and the car was moving straight.
+        </p>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <Stat label="Accuracy" value={`${(100 * (lc.accuracy ?? 0)).toFixed(1)}%`} />
-        <Stat label="Macro-F1" value={(lc.macro_f1 ?? 0).toFixed(3)} />
-        {CLASSES.map((c) => (
-          <Stat key={c} label={`F1 ${CLASS_LABELS[c]}`} value={lc.per_class![c].f1.toFixed(3)} hint={`${lc.per_class![c].support} windows`} />
-        ))}
+      <div className="flex flex-wrap gap-x-10 gap-y-3">
+        <div>
+          <p className="text-3xl font-bold">{(100 * (lc.accuracy ?? 0)).toFixed(1)}%</p>
+          <p className="text-sm text-[var(--c4-muted)]">windows classified correctly</p>
+        </div>
+        <div>
+          <p className="text-3xl font-bold">{(lc.macro_f1 ?? 0).toFixed(3)}</p>
+          <p className="text-sm text-[var(--c4-muted)]">macro-F1 (all three classes weighted equally)</p>
+        </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="text-xs">
+        <table className="w-full max-w-xl border-collapse text-sm">
+          <caption className="pb-2 text-left text-sm text-[var(--c4-muted)]">
+            Rows are the reference label, columns the model&apos;s answer. Shading shows the share of each row.
+          </caption>
           <thead>
+            <tr className="text-[var(--c4-muted)]">
+              <th className="p-2 text-left font-normal">Reference</th>
+              <th colSpan={3} scope="colgroup" className="p-2 text-center font-normal">Model&apos;s answer</th>
+              <th className="p-2" />
+            </tr>
             <tr>
-              <th className="p-1.5 text-left font-normal text-zinc-500">Actual ↓ / Predicted →</th>
+              <th className="p-2" />
               {CLASSES.map((c) => (
-                <th key={c} className="p-1.5 font-medium">{CLASS_LABELS[c]}</th>
+                <th key={c} scope="col" className="p-2 text-center font-semibold">{CLASS_LABELS[c]}</th>
               ))}
+              <th scope="col" className="p-2 text-right font-semibold">Correct</th>
             </tr>
           </thead>
           <tbody>
             {CLASSES.map((t, i) => (
-              <tr key={t}>
-                <th className="p-1.5 text-left font-medium">{CLASS_LABELS[t]}</th>
-                {CLASSES.map((p, j) => (
-                  <td
-                    key={p}
-                    className="min-w-16 p-1.5 text-center tabular-nums"
-                    style={{
-                      background: i === j ? `rgba(26,152,80,${0.15 + 0.6 * (cm[i][j] / max)})` : cm[i][j] ? `rgba(215,48,39,${0.1 + 0.6 * (cm[i][j] / max)})` : undefined,
-                    }}
-                  >
-                    {cm[i][j]}
-                  </td>
-                ))}
+              <tr key={t} className="border-t border-[var(--c4-line)]">
+                <th scope="row" className="whitespace-nowrap p-2 text-left font-semibold">
+                  <span className="mr-2 inline-block h-2.5 w-2.5" style={{ background: CLASS_COLORS[t] }} />
+                  {CLASS_LABELS[t]}
+                </th>
+                {CLASSES.map((p, j) => {
+                  const share = cm[i][j] / rowSum[i];
+                  const colour = i === j ? "46,157,91" : "210,63,47";
+                  return (
+                    <td key={p} className="p-2 text-center" style={{ background: cm[i][j] ? `rgba(${colour},${0.08 + 0.5 * share})` : undefined }}>
+                      {cm[i][j]}
+                    </td>
+                  );
+                })}
+                <td className="p-2 text-right text-[var(--c4-muted)]">{Math.round(100 * lc.per_class![t].recall)}%</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 }
 
-// ---------------------------------------------------------------------------------------------
-function RunDetails({ run, segments }: { run: Run; segments: SegmentCollection | null }) {
-  const s = run.summary;
-  const total = s ? CLASSES.reduce((a, c) => a + (s.segments.seconds_by_class[c] ?? 0), 0) : 0;
-  const stageIdx = run.stage ? STAGES.indexOf(run.stage) : -1;
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">{run.survey_id}</h2>
-        <StatusBadge status={run.status} />
-        {run.model_kind === "demo" && (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-            demo model · mock results
-          </span>
-        )}
-        <span className="ml-auto text-xs text-zinc-500">{fmtDate(run.created_at)}</span>
-      </div>
-
-      {isActive(run.status) && (
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-1">
-            {STAGES.slice(0, 5).map((st, i) => (
-              <div key={st} className="flex-1">
-                <div className={`h-1.5 rounded-full ${i <= stageIdx ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-800"}`} />
-                <p className="mt-1 text-[10px] text-zinc-500">{st}</p>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={() => api.cancel(run.run_id).catch(() => undefined)}
-            className="self-start text-xs text-zinc-500 underline hover:text-zinc-800"
-          >
-            Cancel run
-          </button>
-        </div>
-      )}
-
-      {run.error && (
-        <p className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-300">
-          {run.error.message}
-        </p>
-      )}
-
-      {s && (
-        <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Segments" value={String(s.segments.count)} />
-            <Stat label="Trip length" value={`${Math.round(s.input.duration_s)} s`} />
-            <Stat label="Sensor rate" value={`${Math.round(s.input.native_rate_hz)} Hz`} />
-            <Stat label="Not assessed" value={`${s.segments.unassessed_windows} windows`} hint="slower than 1 m/s" />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-zinc-500">Share of assessed road (by time)</p>
-            <div className="flex h-3 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-              {CLASSES.map((c) => {
-                const v = s.segments.seconds_by_class[c] ?? 0;
-                return total > 0 && v > 0 ? (
-                  <div key={c} style={{ width: `${(100 * v) / total}%`, background: CLASS_COLORS[c] }} title={`${CLASS_LABELS[c]} ${v}s`} />
-                ) : null;
-              })}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-4 text-xs">
-              {CLASSES.map((c) => (
-                <span key={c} className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: CLASS_COLORS[c] }} />
-                  {CLASS_LABELS[c]}: {s.segments.by_class[c] ?? 0} segments ·{" "}
-                  {total > 0 ? Math.round((100 * (s.segments.seconds_by_class[c] ?? 0)) / total) : 0}%
-                </span>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {s?.label_check && <Evaluation lc={s.label_check} />}
-
-      {run.warnings.length > 0 && (
-        <ul className="flex flex-col gap-1 rounded-md bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          {run.warnings.map((w) => (
-            <li key={w}>⚠ {w}</li>
-          ))}
-        </ul>
-      )}
-
-      {run.status === "succeeded" && (
-        <div className="flex flex-wrap gap-3 text-xs">
-          <a className="underline" href={`${C4_API}/runs/${run.run_id}/records`} target="_blank" rel="noreferrer">
-            Segment records (JSON)
-          </a>
-          <a className="underline" href={`${C4_API}/runs/${run.run_id}/segments`} target="_blank" rel="noreferrer">
-            GeoJSON
-          </a>
-          <a className="underline" href={`${C4_API}/runs/${run.run_id}/windows.csv`}>
-            Window details (CSV)
-          </a>
-          {segments && <span className="text-zinc-500">{segments.features.length} segments on map</span>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-      <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold">{value}</p>
-      {hint && <p className="text-[10px] text-zinc-500">{hint}</p>}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-const NO_LABEL = "#9ca3af";
-
-function useMapStyle(mode: "predicted" | "actual" | "match", lc: LabelCheck | undefined): MapStyle | undefined {
+function mapStyleFor(mode: "predicted" | "actual" | "match", lc: LabelCheck | undefined): MapStyle | undefined {
   const classLegend = CLASSES.map((c) => ({ label: CLASS_LABELS[c], color: CLASS_COLORS[c] }));
   const truth = (id: string) => lc?.segments?.[id]?.true_class ?? null;
-  const tip = (id: string, pred: RoughnessClass) => {
-    const t = truth(id);
-    return t ? `Model: <b>${CLASS_LABELS[pred]}</b> · Actual: <b>${CLASS_LABELS[t]}</b>` : "No reference label";
+  const tip: MapStyle["tooltip"] = (f) => {
+    const t = truth(f.properties.record_id);
+    return t ? `Reference label: <b>${CLASS_LABELS[t]}</b>` : "No reference label";
   };
-  if (!lc?.windows || mode === "predicted") {
-    return lc?.windows
-      ? { color: (f) => CLASS_COLORS[f.properties.roughness_class], tooltip: (f) => tip(f.properties.record_id, f.properties.roughness_class), legend: classLegend }
-      : undefined;
-  }
+  if (!lc?.windows) return undefined;
+  if (mode === "predicted") return { color: (f) => CLASS_COLORS[f.properties.roughness_class], tooltip: tip, legend: classLegend };
   if (mode === "actual") {
     return {
       color: (f) => {
         const t = truth(f.properties.record_id);
-        return t ? CLASS_COLORS[t] : NO_LABEL;
+        return t ? CLASS_COLORS[t] : NO_LABEL_COLOR;
       },
-      tooltip: (f) => tip(f.properties.record_id, f.properties.roughness_class),
-      legend: [...classLegend, { label: "No label", color: NO_LABEL }],
+      tooltip: tip,
+      legend: [...classLegend, { label: "No label", color: NO_LABEL_COLOR }],
     };
   }
   return {
     color: (f) => {
       const t = truth(f.properties.record_id);
-      return !t ? NO_LABEL : t === f.properties.roughness_class ? "#1a9850" : "#d73027";
+      return !t ? NO_LABEL_COLOR : t === f.properties.roughness_class ? CLASS_COLORS.good : CLASS_COLORS.bad;
     },
-    tooltip: (f) => tip(f.properties.record_id, f.properties.roughness_class),
+    tooltip: tip,
     legend: [
-      { label: "Correct", color: "#1a9850" },
-      { label: "Wrong", color: "#d73027" },
-      { label: "No label", color: NO_LABEL },
+      { label: "Agrees", color: CLASS_COLORS.good },
+      { label: "Disagrees", color: CLASS_COLORS.bad },
+      { label: "No label", color: NO_LABEL_COLOR },
     ],
   };
 }
 
-// ---------------------------------------------------------------------------------------------
+function RunHeader({ run, profile }: { run: Run; profile: RoadProfile | null }) {
+  const s = run.summary;
+  const facts = [
+    fmtDate(run.created_at),
+    s && `${fmtDuration(s.input.duration_s)} recorded`,
+    profile && `${fmtKm(profile.totalKm)} km assessed`,
+    s && `sensors at ${Math.round(s.input.native_rate_hz)} Hz`,
+  ].filter(Boolean);
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-2xl font-bold tracking-tight">{run.survey_id}</h2>
+        {run.status !== "succeeded" && (
+          <span className="rounded-full border border-[var(--c4-line)] px-2.5 py-0.5 text-xs font-semibold">{STATUS_TEXT[run.status]}</span>
+        )}
+        {run.model_kind === "demo" && (
+          <span className="rounded-full bg-[var(--c4-warn-bg)] px-2.5 py-0.5 text-xs font-semibold">Demo model, results are not real</span>
+        )}
+      </div>
+      <p className="text-sm text-[var(--c4-muted)]">{facts.join(", ")}</p>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------------------------- page
 export default function C4Dashboard() {
   const [model, setModel] = useState<ModelInfo | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
@@ -354,10 +415,13 @@ export default function C4Dashboard() {
   const [segments, setSegments] = useState<SegmentCollection | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [demoBusy, setDemoBusy] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
   const loadedSegmentsFor = useRef<string | null>(null);
   const [mapMode, setMapMode] = useState<"predicted" | "actual" | "match">("predicted");
   const labelCheck = selected?.summary?.label_check;
-  const mapStyle = useMapStyle(mapMode, labelCheck);
+  const mapStyle = useMemo(() => mapStyleFor(mapMode, labelCheck), [mapMode, labelCheck]);
+  const profile = useMemo(() => roadProfile(segments, labelCheck), [segments, labelCheck]);
 
   const refreshRuns = useCallback(async () => {
     try {
@@ -375,6 +439,7 @@ export default function C4Dashboard() {
       .then((r) => {
         setRuns(r);
         setApiError(null);
+        if (!r.length) setShowUpload(true);
       })
       .catch((e) => setApiError(errText(e)));
   }, []);
@@ -404,6 +469,8 @@ export default function C4Dashboard() {
   function select(run: Run) {
     if (run.run_id !== selectedId) {
       setSegments(null);
+      setHovered(null);
+      setMapMode("predicted");
       loadedSegmentsFor.current = null;
     }
     setSelected(run);
@@ -411,6 +478,7 @@ export default function C4Dashboard() {
 
   function created(run: Run) {
     select(run);
+    setShowUpload(false);
     refreshRuns();
   }
 
@@ -425,119 +493,132 @@ export default function C4Dashboard() {
     }
   }
 
+  const done = selected?.status === "succeeded";
+
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 lg:flex-row">
-      {/* ------------------------------------------------------------- side panel */}
-      <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-80">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">RoadLens · Component 4</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Road roughness</h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Upload a smartphone recording (accelerometer, gyroscope, GPS) to classify the road as good, regular or bad.
+    <div className="c4 flex min-h-screen flex-1 flex-col">
+      {/* ------------------------------------------------------------------ header */}
+      <header className="bg-[var(--c4-header)] text-[var(--c4-header-ink)]">
+        <div className="mx-auto flex w-full max-w-[90rem] flex-wrap items-end justify-between gap-x-6 gap-y-1 px-4 pb-3 pt-4 sm:px-6">
+          <div>
+            <p className="text-sm opacity-75">RoadLens</p>
+            <h1 className="text-2xl font-bold tracking-tight">Road condition from a phone</h1>
+          </div>
+          <p className="text-sm opacity-80" title={model ? `Model file SHA-256 ${model.model_sha256}` : undefined}>
+            {model
+              ? `${model.kind === "demo" ? "Demo model" : "Model"} ${model.model_version}${model.lovo_macro_f1 != null ? `, F1 ${model.lovo_macro_f1.toFixed(3)} on an unseen vehicle` : ""}`
+              : modelError
+                ? `Model unavailable: ${modelError}`
+                : "Loading model…"}
           </p>
-          <div className="mt-3 text-xs">
-            {model ? (
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium ${
-                  model.kind === "demo"
-                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                    : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                }`}
-                title={`SHA-256 ${model.model_sha256}`}
-              >
-                {model.kind === "demo" ? "Demo model (synthetic)" : "Production model"} · {model.model_version}
-                {model.lovo_macro_f1 != null && ` · LOVO F1 ${model.lovo_macro_f1.toFixed(3)}`}
-              </span>
-            ) : modelError ? (
-              <span className="text-red-600">Model: {modelError}</span>
-            ) : (
-              <span className="text-zinc-500">Loading model…</span>
-            )}
-          </div>
         </div>
+        <div className="c4-centre-line" aria-hidden />
+      </header>
 
-        <section className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-          <h2 className="mb-3 text-sm font-semibold">New survey</h2>
-          <UploadForm onCreated={created} />
-          <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+      <div className="mx-auto flex w-full max-w-[90rem] flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row lg:gap-8">
+        {/* ---------------------------------------------------------------- surveys */}
+        <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-80">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">Surveys</h2>
             <button
-              onClick={runDemo}
-              disabled={demoBusy}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              onClick={() => setShowUpload((v) => !v)}
+              aria-expanded={showUpload}
+              className={showUpload ? "text-sm font-semibold text-[var(--c4-muted)] underline" : btnPrimary + " !py-1.5"}
             >
-              {demoBusy ? "Starting…" : "Try the sample drive"}
-            </button>
-            <p className="mt-1.5 text-[11px] text-zinc-500">75 s synthetic drive in Colombo: good → regular → bad → good.</p>
-          </div>
-        </section>
-
-        <section className="flex min-h-0 flex-col">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Recent runs</h2>
-            <button onClick={refreshRuns} className="text-xs text-zinc-500 hover:text-zinc-800">
-              Refresh
+              {showUpload ? "Close" : "New survey"}
             </button>
           </div>
+          {showUpload && (
+            <div className="rounded-md border border-[var(--c4-line)] bg-[var(--c4-surface)] p-4">
+              <UploadForm onCreated={created} onDemo={runDemo} demoBusy={demoBusy} />
+            </div>
+          )}
           {apiError && (
-            <p className="mb-2 rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
-              Backend: {apiError}
-            </p>
+            <Notice tone="danger">
+              The server did not respond: {apiError}.{" "}
+              <button onClick={refreshRuns} className="font-semibold underline">Try again</button>
+            </Notice>
           )}
-          {runs.length === 0 && !apiError && <p className="text-xs text-zinc-500">No runs yet.</p>}
-          <ul className="flex flex-col gap-1.5 overflow-y-auto lg:max-h-[40vh]">
-            {runs.map((r) => (
-              <li key={r.run_id}>
-                <button
-                  onClick={() => select(r)}
-                  className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm ${
-                    r.run_id === selectedId
-                      ? "border-zinc-900 dark:border-zinc-100"
-                      : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800"
-                  }`}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{r.survey_id}</span>
-                    <span className="block text-[11px] text-zinc-500">
-                      {fmtDate(r.created_at)} · {r.source}
-                      {r.summary ? ` · ${r.summary.segments.count} segments` : ""}
-                    </span>
-                  </span>
-                  <StatusBadge status={r.status} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </aside>
-
-      {/* ------------------------------------------------------------- main area */}
-      <main className="flex min-w-0 flex-1 flex-col gap-4">
-        {labelCheck?.windows ? (
-          <div className="flex items-center gap-1 self-start rounded-lg border border-zinc-200 p-1 text-xs dark:border-zinc-800">
-            {(["predicted", "actual", "match"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMapMode(m)}
-                className={`rounded-md px-3 py-1.5 ${mapMode === m ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "hover:bg-zinc-100 dark:hover:bg-zinc-900"}`}
-              >
-                {m === "predicted" ? "Model prediction" : m === "actual" ? "Actual label" : "Correct / wrong"}
-              </button>
-            ))}
+          <div className="max-h-72 overflow-y-auto lg:max-h-[calc(100vh-12rem)]">
+            <SurveyList runs={runs} selectedId={selectedId} onSelect={select} />
           </div>
-        ) : null}
-        <div className="h-[55vh] min-h-[360px]">
-          <SegmentMap data={segments} style={mapStyle} />
-        </div>
-        <section className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-          {selected ? (
-            <RunDetails run={selected} segments={segments} />
-          ) : (
-            <p className="text-sm text-zinc-500">
-              Upload a survey or try the sample drive. Results appear on the map, coloured by road condition.
-            </p>
+        </aside>
+
+        {/* ---------------------------------------------------------------- selected survey */}
+        <main className="flex min-w-0 flex-1 flex-col gap-6">
+          {selected ? <RunHeader run={selected} profile={profile} /> : (
+            <div className="flex flex-col gap-1">
+              <h2 className="text-2xl font-bold tracking-tight">Choose a survey</h2>
+              <p className="max-w-[65ch] text-sm text-[var(--c4-muted)]">
+                Record a drive with a phone fixed to the dashboard, then upload the motion and GPS files. Each stretch of
+                road is classed as good, regular or bad and drawn on the map.
+              </p>
+            </div>
           )}
-        </section>
-      </main>
+
+          {selected && isActive(selected.status) && <Progress run={selected} />}
+          {selected?.error && <Notice tone="danger">{selected.error.message}</Notice>}
+
+          <div className="h-[52vh] min-h-[340px]">
+            <SegmentMap data={segments} style={mapStyle} highlight={hovered} onHover={setHovered}>
+              {labelCheck?.windows ? (
+                <div className="flex rounded-md border border-[var(--c4-line)] bg-[var(--c4-surface)] p-0.5 text-xs" role="radiogroup" aria-label="Map colours">
+                  {(["predicted", "actual", "match"] as const).map((m) => (
+                    <button
+                      key={m}
+                      role="radio"
+                      aria-checked={mapMode === m}
+                      onClick={() => setMapMode(m)}
+                      className={`rounded px-3 py-1.5 ${mapMode === m ? "bg-[var(--c4-ink)] text-[var(--c4-bg)]" : "hover:bg-[var(--c4-bg)]"}`}
+                    >
+                      {m === "predicted" ? "Model" : m === "actual" ? "Reference" : "Agreement"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </SegmentMap>
+          </div>
+
+          {done && profile && (
+            <>
+              <RoadStrip profile={profile} showReference={!!labelCheck?.windows} hovered={hovered} onHover={setHovered} />
+              <ConditionSummary profile={profile} run={selected!} />
+            </>
+          )}
+
+          {done && labelCheck && <Evaluation lc={labelCheck} />}
+
+          {selected && selected.warnings.length > 0 && (
+            <Notice tone="warn">
+              <ul className="flex list-disc flex-col gap-1 pl-4">
+                {selected.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
+
+          {done && (
+            <footer className="flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--c4-line)] pt-3 text-sm text-[var(--c4-muted)]">
+              <span>Download:</span>
+              <a className="underline hover:text-[var(--c4-ink)]" href={`${C4_API}/runs/${selected!.run_id}/segments`} target="_blank" rel="noreferrer">
+                Road segments (GeoJSON)
+              </a>
+              <a className="underline hover:text-[var(--c4-ink)]" href={`${C4_API}/runs/${selected!.run_id}/records`} target="_blank" rel="noreferrer">
+                Segment records (JSON)
+              </a>
+              <a className="underline hover:text-[var(--c4-ink)]" href={`${C4_API}/runs/${selected!.run_id}/windows.csv`}>
+                Window details (CSV)
+              </a>
+              {selected!.summary && selected!.summary.segments.unassessed_windows > 0 && (
+                <span className="basis-full">
+                  {selected!.summary.segments.unassessed_windows} windows were skipped because the car was stopped or slower than 1 m/s.
+                </span>
+              )}
+            </footer>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
