@@ -7,6 +7,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Install system dependencies required by OpenCV (video/image processing)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install uv using the official standalone binary
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 

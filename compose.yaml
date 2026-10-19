@@ -27,8 +27,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-roadlens}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       C4_STORAGE_DIR: /data/c4
+      C1_STORAGE_DIR: /data/c1
+      C1_WEIGHTS_PATH: /app/ml/c1/weights/base_model_b0.pt
     volumes:
       - c4_data:/data/c4
+      - c1_data:/data/c1
+      - ./ml/c1/weights:/app/ml/c1/weights:ro
     depends_on:
       db:
         condition: service_healthy
@@ -55,3 +59,4 @@ services:
 volumes:
   postgres_data:
   c4_data:
+  c1_data:

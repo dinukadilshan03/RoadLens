@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from backend.app.database import check_database
+from backend.app.routes.c1 import router as c1_router
 from backend.app.routes.c4 import router as c4_router
 
 app = FastAPI(
@@ -12,6 +13,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.include_router(c1_router, prefix="/api/v1")
 app.include_router(c4_router, prefix="/api/v1")
 
 
