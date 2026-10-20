@@ -10,24 +10,24 @@ WORKDIR /app
 # Install uv using the official standalone binary
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Create a non-privileged system user for container security
-RUN useradd -m -u 1000 appuser
+# Create a non-privileged system user and establish application directory ownership
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app && \
+    chown appuser:appuser /app
 
-# Install locked dependencies into /app/.venv
+# Copy dependency specifications together to maximize caching
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
-
-# Copy application packages (ML datasets, runs, and weights excluded via .dockerignore)
-# Component 4 (road roughness) inference dependencies: scipy, scikit-learn, xgboost, ...
 COPY ml/c4/requirements.lock ./ml/c4/requirements.lock
-RUN uv pip install --no-cache --python /app/.venv/bin/python -r ml/c4/requirements.lock
 
-COPY backend ./backend
-COPY ml ./ml
-COPY shared ./shared
+# Install dependencies into /app/.venv with persistent BuildKit cache and no redundant layers
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev && \
+    uv pip install --python /app/.venv/bin/python -r ml/c4/requirements.lock
 
-# Set ownership to appuser
-RUN chown -R appuser:appuser /app
+# Copy application packages directly with appuser ownership (avoids slow recursive chown on .venv)
+COPY --chown=appuser:appuser backend ./backend
+COPY --chown=appuser:appuser ml ./ml
+COPY --chown=appuser:appuser shared ./shared
 
 USER appuser
 
