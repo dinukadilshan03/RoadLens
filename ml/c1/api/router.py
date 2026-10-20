@@ -19,11 +19,19 @@ Errors use the platform format {code, message, request_id, details}:
 import logging
 import os
 import re
+import shutil
 import threading
 import traceback
 import uuid
 from pathlib import Path
 from typing import Annotated
+
+SAMPLE_FILES: dict[str, str] = {
+    "pothole_alligator": "sample_pothole_alligator.jpg",
+    "potholes": "sample_potholes.jpg",
+    "alligator": "sample_alligator.jpg",
+    "longitudinal": "sample_longitudinal.jpg",
+}
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -255,6 +263,42 @@ def build_router(storage_dir=None, weights_path=None, store=None) -> APIRouter:
             {
                 "survey_id": survey_id,
                 "media_paths": media_paths,
+                "conf_threshold": conf_threshold,
+            },
+        )
+        return public(meta)
+
+    @r.post("/runs/demo", status_code=202)
+    def create_demo_run(
+        background: BackgroundTasks,
+        sample_key: Annotated[str, Form(description="Sample key: pothole_alligator, potholes, alligator, longitudinal")] = "pothole_alligator",
+        conf_threshold: Annotated[float, Form(description="Detection confidence threshold")] = 0.25,
+    ):
+        if not (0.01 <= conf_threshold <= 0.99):
+            return _error(422, "invalid_input", "conf_threshold must be between 0.01 and 0.99.")
+        if not weights_path.is_file():
+            return _error(
+                503,
+                "model_unavailable",
+                f"C1 base model weights not found at {weights_path}.",
+            )
+        filename = SAMPLE_FILES.get(sample_key, "sample_pothole_alligator.jpg")
+        sample_path = C1_DIR / "fixtures" / "samples" / filename
+        if not sample_path.is_file():
+            return _error(404, "sample_not_found", f"Demo sample '{sample_key}' ({filename}) not found.")
+
+        survey_id = f"demo-{sample_key}"
+        meta = store.new(survey_id, "demo", conf_threshold=conf_threshold)
+        inputs_dir = store.dir(meta["run_id"]) / "inputs"
+        dest = inputs_dir / filename
+        shutil.copyfile(sample_path, dest)
+
+        background.add_task(
+            execute,
+            meta["run_id"],
+            {
+                "survey_id": survey_id,
+                "media_paths": [str(dest)],
                 "conf_threshold": conf_threshold,
             },
         )

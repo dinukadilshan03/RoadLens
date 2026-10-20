@@ -140,6 +140,37 @@ def test_upload_run_outputs_damage_class_bbox_and_confidence(tmp_path, dummy_wei
         assert crop_res.headers["content-type"] == "image/jpeg"
 
 
+def test_demo_run(tmp_path, dummy_weights):
+    app = FastAPI()
+    app.include_router(
+        build_router(storage_dir=tmp_path / "runs", weights_path=dummy_weights),
+        prefix="/api/v1",
+    )
+    client = TestClient(app)
+
+    fake_preds = [
+        {
+            "class_id": 3,
+            "damage_class": "Pothole_D40",
+            "display_name": "Pothole",
+            "confidence": 0.82,
+            "bbox_xyxy": [150.0, 200.0, 320.0, 310.0],
+        }
+    ]
+
+    with (
+        patch("ml.c1.adapters.detector._get_yolo_model", return_value=object()),
+        patch.object(C1Detector, "_predict_frame", return_value=fake_preds),
+    ):
+        res = client.post("/api/v1/c1/runs/demo", data={"sample_key": "pothole_alligator"})
+        assert res.status_code == 202
+        run_id = res.json()["run_id"]
+        meta = client.get(f"/api/v1/c1/runs/{run_id}").json()
+        assert meta["status"] == "succeeded"
+        assert meta["source"] == "demo"
+        assert meta["summary"]["total_defects_detected"] == 1
+
+
 def test_validation_errors(tmp_path, dummy_weights):
     app = FastAPI()
     app.include_router(

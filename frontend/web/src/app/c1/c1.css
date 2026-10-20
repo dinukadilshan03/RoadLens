@@ -1,0 +1,77 @@
+/* Component 1 (Road Damage Detection) page styles. Scoped under .c1-theme. */
+
+.c1-theme {
+  --c1-bg: #f8fafc;
+  --c1-surface: #ffffff;
+  --c1-surface-alt: #f1f5f9;
+  --c1-border: #e2e8f0;
+  --c1-border-subtle: #edf2f7;
+  --c1-ink: #0f172a;
+  --c1-muted: #64748b;
+  --c1-primary: #1d4ed8;
+  --c1-primary-hover: #1e40af;
+  --c1-primary-light: #eff6ff;
+
+  /* Distress category accent colors */
+  --c1-pothole: #dc2626;
+  --c1-alligator: #ea580c;
+  --c1-longitudinal: #2563eb;
+  --c1-transverse: #d97706;
+
+  background-color: var(--c1-bg);
+  color: var(--c1-ink);
+  min-height: 100vh;
+}
+
+/* Centre road line divider */
+.c1-centre-line {
+  background-image: repeating-linear-gradient(90deg, #f59e0b 0 24px, transparent 24px 40px);
+  height: 3px;
+}
+
+/* Pulsing badge for active processing stages */
+@keyframes c1-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.04);
+  }
+}
+
+.c1-pulsing {
+  animation: c1-pulse 1.8s infinite ease-in-out;
+}
+
+/* Interactive card transitions */
+.c1-card {
+  background-color: var(--c1-surface);
+  border: 1px solid var(--c1-border);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.c1-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
+}
+
+/* Custom scrollbars */
+.c1-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.c1-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 9999px;
+}
+.c1-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.c1-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
