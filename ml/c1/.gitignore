@@ -10,6 +10,10 @@
 /runs/*
 !/runs/.gitkeep
 
+# Local survey fixtures and test image sequences
+/fixtures/*
+!/fixtures/.gitkeep
+
 # ML caches and experiment tracking
 *.cache
 .cache/
