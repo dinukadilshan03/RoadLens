@@ -1,0 +1,697 @@
+.c3-workspace {
+  min-height: 100vh;
+  background: #e4e8dc radial-gradient(ellipse at 0 0, #d1dbc8, transparent 60%);
+  color: #243531;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+.c3-workspace * {
+  box-sizing: border-box;
+}
+.c3-workspace a {
+  text-decoration: none;
+}
+.c3-workspace button,
+.c3-workspace input,
+.c3-workspace select {
+  font: inherit;
+}
+.c3-workspace button,
+.c3-workspace summary {
+  cursor: pointer;
+}
+.c3-workspace :focus-visible {
+  outline: 3px solid #88691d;
+  outline-offset: 4px;
+}
+.c3-header {
+  max-width: 1320px;
+  margin: auto;
+  min-height: 100px;
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid #b6c1ac;
+}
+.c3-header nav {
+  display: flex;
+  gap: 24px;
+  font-size: 14px;
+}
+.c3-header [aria-current] {
+  border-bottom: 2px solid #91732a;
+  padding-bottom: 8px;
+}
+.c3-pill {
+  border: 1px solid #a8b59d;
+  border-radius: 30px;
+  padding: 8px 14px;
+  font-size: 11px;
+  letter-spacing: 0.7px;
+  white-space: nowrap;
+}
+.c3-main {
+  width: min(1220px, calc(100% - 64px));
+  margin: auto;
+}
+.c3-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 32px;
+  padding: 64px 0 48px;
+}
+.c3-eyebrow {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 1.7px;
+  color: #657752;
+}
+.c3-intro h1 {
+  font-size: clamp(44px, 5.4vw, 72px);
+  letter-spacing: -3px;
+  line-height: 1.05;
+  margin: 22px 0;
+}
+.c3-intro h1 em {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  color: #596e47;
+}
+.c3-intro > div > p:last-child {
+  color: #58645c;
+  font-size: 16px;
+  line-height: 1.8;
+}
+.c3-intro-note {
+  border-left: 1px solid #b5c0a9;
+  padding-left: 36px;
+  min-width: 245px;
+}
+.c3-intro-note > span {
+  font-size: 70px;
+  color: #a0ae91;
+  font-weight: 300;
+  letter-spacing: -5px;
+}
+.c3-intro-note p {
+  font-size: 22px;
+  line-height: 1.4;
+  margin: 8px 0 18px;
+}
+.c3-intro-note small {
+  color: #65715f;
+  line-height: 1.8;
+}
+.c3-workflow {
+  background: #293b36;
+  color: #f2f3e8;
+  padding: 26px 30px;
+  border-top: 3px solid #edcb65;
+  border-radius: 8px;
+  display: flex;
+  gap: 40px;
+  align-items: center;
+  margin-bottom: 28px;
+}
+.c3-workflow > div {
+  display: grid;
+  gap: 7px;
+  min-width: 160px;
+}
+.c3-workflow > div > span {
+  font-size: 12px;
+  color: #b9c7b4;
+}
+.c3-workflow ol {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex: 1;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.c3-workflow li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #b5c5b9;
+}
+.c3-workflow li > span {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #6d8174;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.c3-workflow .active,
+.c3-workflow .complete {
+  color: #f0d581;
+}
+.c3-workflow .active > span,
+.c3-workflow .complete > span {
+  background: #edcb65;
+  color: #243531;
+  border-color: #edcb65;
+}
+.c3-panel {
+  background: #f4f5ec;
+  border: 1px solid #c5ceba;
+  border-radius: 9px;
+  margin: 24px 0;
+  padding: 32px;
+}
+.c3-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.c3-section-title h2 {
+  font-size: 26px;
+  letter-spacing: -0.8px;
+  font-weight: 500;
+  margin-top: 10px;
+}
+.c3-muted {
+  color: #626e60;
+  line-height: 1.7;
+  font-size: 14px;
+}
+.c3-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin: 24px 0;
+}
+.c3-upload {
+  border: 1px dashed #9dae90;
+  border-radius: 7px;
+  background: #eaf0e1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 24px 16px;
+  min-width: 0;
+}
+.c3-upload > span:last-of-type {
+  font-size: 12px;
+  color: #5c6d57;
+  overflow-wrap: anywhere;
+}
+.c3-upload b {
+  font-size: 14px;
+  font-weight: 550;
+}
+.c3-upload-icon {
+  font-size: 28px;
+  color: #58704e;
+}
+.c3-upload input {
+  width: 100%;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.c3-upload input::file-selector-button {
+  background: #f7f8f1;
+  border: 1px solid #a6b19d;
+  border-radius: 4px;
+  padding: 6px;
+  color: #243531;
+  cursor: pointer;
+}
+.c3-submit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  border-top: 1px solid #d8dece;
+  padding-top: 24px;
+}
+.c3-submit p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.c3-submit p span {
+  color: #687460;
+}
+.c3-workspace button {
+  border: 1px solid #243531;
+  background: #243531;
+  color: white;
+  padding: 13px 20px;
+  border-radius: 5px;
+  font-size: 14px;
+}
+.c3-workspace button:hover {
+  background: #3c594c;
+}
+.c3-workspace button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.c3-submit button span {
+  margin-left: 22px;
+  color: #edcb65;
+}
+.c3-input-preview {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.c3-input-preview figure {
+  max-width: 210px;
+}
+.c3-input-preview img {
+  height: 110px;
+  max-width: 100%;
+  object-fit: contain;
+  background: #293b36;
+}
+.c3-input-preview figcaption {
+  font-size: 12px;
+  margin-top: 6px;
+}
+.c3-empty {
+  padding: 55px 15px;
+  text-align: center;
+  border: 1px dashed #b4c0a8;
+  border-radius: 7px;
+  background: radial-gradient(ellipse, #e1e8d6, transparent);
+}
+.c3-empty > span {
+  font-size: 65px;
+  color: #7e946d;
+}
+.c3-empty h3 {
+  font-family: Georgia, serif;
+  font-size: 27px;
+  margin: 12px 0;
+}
+.c3-empty p {
+  color: #66745d;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.c3-empty small {
+  display: block;
+  margin-top: 22px;
+  color: #5f7156;
+  font-size: 12px;
+}
+.c3-visual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.c3-visual-grid figure {
+  margin: 0;
+}
+.c3-image {
+  position: relative;
+  aspect-ratio: 4/3;
+  background: #293b36;
+  overflow: hidden;
+  border-radius: 6px;
+}
+.c3-image img,
+.c3-image canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.c3-image img {
+  object-fit: fill;
+}
+.c3-interactive {
+  touch-action: none;
+  cursor: crosshair;
+}
+.c3-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: white;
+  box-shadow: 0 1px 2px black;
+  pointer-events: none;
+}
+.c3-map-badge {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  background: #243531dd;
+  color: #f4da8f;
+  font-size: 11px;
+  padding: 6px 9px;
+  border-radius: 3px;
+}
+.c3-visual-grid figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 16px 0;
+}
+.c3-visual-grid figcaption span {
+  font-size: 11px;
+  color: #68775d;
+  letter-spacing: 1px;
+}
+.c3-visual-grid figcaption b {
+  font-weight: 500;
+}
+.c3-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  border-bottom: 1px solid #d0d9c5;
+  padding: 8px 0 24px;
+  font-size: 12px;
+}
+.c3-controls label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.c3-workspace input[type="range"] {
+  accent-color: #436c59;
+}
+.c3-legend {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.c3-legend i {
+  width: 95px;
+  height: 7px;
+  background: linear-gradient(90deg, #46a096, #ff3728);
+  border-radius: 8px;
+}
+.c3-profile {
+  margin-top: 26px;
+}
+.c3-profile h3 {
+  font-size: 18px;
+}
+.c3-profile p,
+.c3-research p,
+.c3-segmentation p {
+  font-size: 13px;
+  color: #65745c;
+  line-height: 1.7;
+}
+.c3-profile > label {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  margin: 14px 0;
+}
+.c3-profile svg {
+  width: 100%;
+  max-height: 240px;
+  background: #ecf0e4;
+  padding: 15px;
+  border-radius: 5px;
+}
+.c3-profile svg text {
+  font: 10px Arial;
+  fill: #52644e;
+}
+.c3-research {
+  margin-top: 24px;
+  border-top: 1px solid #cdd7bf;
+  padding-top: 18px;
+  font-size: 13px;
+}
+.c3-research summary {
+  font-weight: 550;
+}
+.c3-research pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.c3-histogram {
+  height: 100px;
+  display: flex;
+  align-items: end;
+  gap: 5px;
+  margin: 20px 0;
+}
+.c3-histogram div {
+  flex: 1;
+  background: #718d62;
+  border-radius: 3px 3px 0 0;
+}
+.c3-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  margin: 24px 0;
+}
+.c3-metrics article {
+  border: 1px solid #ccd5bf;
+  padding: 22px;
+  border-radius: 7px;
+  background: #eaf0e1;
+}
+.c3-metrics article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+.c3-metrics strong {
+  font-size: 34px;
+  font-weight: 500;
+  display: block;
+  margin: 18px 0 4px;
+  letter-spacing: -1px;
+}
+.c3-metrics article > span {
+  color: #67775d;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+.c3-metrics details {
+  position: relative;
+}
+.c3-metrics summary {
+  list-style: none;
+}
+.c3-metrics details p {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  width: 220px;
+  padding: 14px;
+  background: #293b36;
+  color: white;
+  border-radius: 5px;
+  line-height: 1.7;
+  box-shadow: 0 6px 20px #24353130;
+}
+.c3-notice {
+  background: #f0e6bf;
+  border-left: 3px solid #ab8b35;
+  padding: 18px 22px;
+  font-size: 14px;
+  margin-top: 20px;
+}
+.c3-notice p {
+  font-size: 13px;
+  line-height: 1.8;
+  margin-top: 6px;
+}
+.c3-error {
+  background: #f8e0d6;
+  color: #7c2f22;
+  padding: 16px;
+  margin-top: 16px;
+  border-radius: 4px;
+}
+.c3-export {
+  display: flex;
+  gap: 8px;
+}
+.c3-export button {
+  background: transparent;
+  color: #243531;
+  font-size: 12px;
+}
+.c3-export button:hover {
+  background: #d6dfc9;
+}
+.c3-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 0 38px;
+  color: #5d6d55;
+  font-size: 12px;
+}
+.c3-footer > span {
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.c3-segmentation {
+  margin-bottom: 24px;
+}
+.c3-segment-frame {
+  position: relative;
+  max-width: 420px;
+  margin: 14px 0;
+  background: #293b36;
+}
+.c3-segment-frame img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+}
+.c3-mask-layer {
+  mix-blend-mode: screen;
+  opacity: 0.35;
+}
+.c3-segment-frame > span {
+  position: absolute;
+  border: 2px solid #edcb65;
+}
+.c3-workspace select {
+  padding: 7px;
+  border: 1px solid #a0af93;
+  border-radius: 4px;
+  background: #eaf0e1;
+  margin-left: 8px;
+}
+@media (max-width: 950px) {
+  .c3-header > .c3-pill {
+    display: none;
+  }
+  .c3-workflow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
+  }
+  .c3-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .c3-upload-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .c3-upload:last-child {
+    grid-column: 1/-1;
+  }
+  .c3-intro-note {
+    min-width: 200px;
+  }
+}
+@media (max-width: 640px) {
+  .c3-main {
+    width: calc(100% - 28px);
+  }
+  .c3-header {
+    padding: 18px 16px;
+    flex-wrap: wrap;
+    gap: 18px;
+  }
+  .c3-header nav {
+    gap: 18px;
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .c3-header img {
+    width: 170px;
+  }
+  .c3-intro {
+    padding: 38px 0 28px;
+  }
+  .c3-intro-note {
+    display: none;
+  }
+  .c3-intro h1 {
+    letter-spacing: -2px;
+  }
+  .c3-panel {
+    padding: 20px;
+  }
+  .c3-section-title {
+    align-items: start;
+    flex-direction: column;
+  }
+  .c3-section-title h2 {
+    font-size: 24px;
+  }
+  .c3-upload-grid,
+  .c3-visual-grid {
+    grid-template-columns: 1fr;
+  }
+  .c3-workflow {
+    padding: 22px 16px;
+  }
+  .c3-workflow ol {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .c3-workflow li {
+    font-size: 11px;
+    gap: 6px;
+  }
+  .c3-submit,
+  .c3-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .c3-metrics {
+    gap: 10px;
+  }
+  .c3-metrics article {
+    padding: 15px;
+  }
+  .c3-metrics strong {
+    font-size: 28px;
+  }
+  .c3-footer {
+    flex-wrap: wrap;
+  }
+  .c3-controls label {
+    flex-wrap: wrap;
+  }
+  .c3-export {
+    flex-wrap: wrap;
+  }
+}
+@media print {
+  .c3-workspace {
+    background: white;
+  }
+  .c3-header nav,
+  .c3-upload-grid,
+  .c3-submit,
+  .c3-export,
+  .c3-footer,
+  .c3-input-preview {
+    display: none;
+  }
+  .c3-panel {
+    break-inside: avoid;
+  }
+  .c3-main {
+    width: 100%;
+  }
+  .c3-intro {
+    padding: 20px 0;
+  }
+  .c3-workflow {
+    display: none;
+  }
+}
