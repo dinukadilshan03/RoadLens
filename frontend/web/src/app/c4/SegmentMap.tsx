@@ -1,7 +1,7 @@
 "use client";
 
-// Road-segment map. Leaflet is loaded from a CDN at runtime, so no npm dependency is added;
-// tiles come from OpenStreetMap.
+// Road-segment map. Leaflet is loaded from a CDN at runtime, so no npm dependency is added.
+// Base map: OpenStreetMap tiles, toned down in c4.css so the condition colours stand out.
 import { useEffect, useRef, useState } from "react";
 import { CLASS_COLORS, CLASS_LABELS, type SegmentCollection, type SegmentFeature } from "./api";
 
@@ -39,7 +39,7 @@ function loadLeaflet(): Promise<Leaflet> {
       js.onload = () => resolve(w.L);
       js.onerror = () => {
         leafletPromise = null;
-        reject(new Error("Map library could not be loaded (no internet connection?)."));
+        reject(new Error("The map could not be loaded. Check the internet connection and reload the page."));
       };
       document.head.appendChild(js);
     });
@@ -52,13 +52,33 @@ function fmtTime(ms: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export default function SegmentMap({ data, style = DEFAULT_STYLE, fit = true }: { data: SegmentCollection | null; style?: MapStyle; fit?: boolean }) {
+const WEIGHT = 6;
+
+export default function SegmentMap({
+  data,
+  style = DEFAULT_STYLE,
+  highlight = null,
+  onHover,
+  children,
+}: {
+  data: SegmentCollection | null;
+  style?: MapStyle;
+  highlight?: string | null;
+  onHover?: (id: string | null) => void;
+  children?: React.ReactNode;
+}) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<Leaflet>(null);
   const layer = useRef<Leaflet>(null);
+  const lines = useRef<Map<string, Leaflet>>(new Map());
+  const hoverCb = useRef(onHover);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const fitted = useRef<SegmentCollection | null>(null);
+
+  useEffect(() => {
+    hoverCb.current = onHover;
+  }, [onHover]);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,9 +86,10 @@ export default function SegmentMap({ data, style = DEFAULT_STYLE, fit = true }: 
       .then((L) => {
         if (cancelled || !el.current || map.current) return;
         map.current = L.map(el.current, { zoomControl: true }).setView([7.8731, 80.7718], 7);
+        // OpenStreetMap tiles; c4.css tones them down so the condition colours stand out.
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           maxZoom: 19,
-          attribution: "&copy; OpenStreetMap contributors",
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(map.current);
         layer.current = L.layerGroup().addTo(map.current);
         setError(null);
@@ -84,45 +105,54 @@ export default function SegmentMap({ data, style = DEFAULT_STYLE, fit = true }: 
     const L = (window as any).L;
     if (!L || !map.current || !layer.current) return;
     layer.current.clearLayers();
+    lines.current.clear();
     const feats = (data?.features ?? []).filter((f) => f.geometry);
     if (!feats.length) return;
     const bounds = L.latLngBounds([]);
     for (const f of feats) {
       const p = f.properties;
       const latlngs = f.geometry!.coordinates.map(([lon, lat]) => [lat, lon]);
-      const line = L.polyline(latlngs, {
-        color: style.color(f),
-        weight: 7,
-        opacity: 0.9,
-        lineCap: "round",
-      });
-      const conf = p.confidence == null ? "–" : `${Math.round(p.confidence * 100)}%`;
+      const line = L.polyline(latlngs, { color: style.color(f), weight: WEIGHT, opacity: 0.95, lineCap: "butt" });
+      const conf = p.confidence == null ? "" : `, ${Math.round(p.confidence * 100)}% confident`;
       line.bindTooltip(
-        `<b>${CLASS_LABELS[p.roughness_class]}</b> · confidence ${conf}<br/>` +
-          `${fmtTime(p.interval_start_ms)} – ${fmtTime(p.interval_end_ms)}` + (style.tooltip ? `<br/>${style.tooltip(f)}` : ""),
+        `<b>${CLASS_LABELS[p.roughness_class]}</b>${conf}<br/>Recorded at ${fmtTime(p.interval_start_ms)}` +
+          (style.tooltip ? `<br/>${style.tooltip(f)}` : ""),
         { sticky: true },
       );
+      line.on("mouseover", () => hoverCb.current?.(p.record_id));
+      line.on("mouseout", () => hoverCb.current?.(null));
       line.addTo(layer.current);
+      lines.current.set(p.record_id, line);
       bounds.extend(line.getBounds());
     }
-    if (fit && fitted.current !== data) {
-      map.current.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });   // only when new data arrives
+    if (fitted.current !== data) {
+      map.current.fitBounds(bounds, { padding: [36, 36], maxZoom: 18 }); // only when new data arrives
       fitted.current = data;
     }
-  }, [data, ready, style, fit]);
+  }, [data, ready, style]);
+
+  // Emphasise the stretch that is pointed at, here or on the road strip.
+  useEffect(() => {
+    lines.current.forEach((line, id) => {
+      const on = highlight === id;
+      line.setStyle({ weight: on ? WEIGHT + 6 : WEIGHT, opacity: highlight && !on ? 0.35 : 0.95 });
+      if (on) line.bringToFront();
+    });
+  }, [highlight, data, style, ready]);
 
   return (
-    <div className="relative h-full min-h-[360px] w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
-      <div ref={el} className="absolute inset-0 z-0" aria-label="Map of road segments" />
+    <div className="relative h-full min-h-[340px] w-full overflow-hidden rounded-md border border-[var(--c4-line)]">
+      <div ref={el} className="absolute inset-0 z-0" role="region" aria-label="Map of the surveyed road, coloured by condition" />
       {error && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-50/90 p-6 text-center text-sm text-zinc-600 dark:bg-zinc-900/90 dark:text-zinc-300">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--c4-surface)] p-6 text-center text-sm text-[var(--c4-muted)]">
           {error}
         </div>
       )}
-      <div className="absolute bottom-3 left-3 z-[500] flex gap-3 rounded-lg bg-white/95 px-3 py-2 text-xs shadow dark:bg-zinc-900/95">
+      {children && <div className="absolute right-3 top-3 z-[500]">{children}</div>}
+      <div className="absolute bottom-3 left-3 z-[500] flex gap-3 rounded-md border border-[var(--c4-line)] bg-[var(--c4-surface)] px-3 py-1.5 text-xs">
         {style.legend.map((l) => (
           <span key={l.label} className="flex items-center gap-1.5">
-            <span className="inline-block h-1.5 w-5 rounded-full" style={{ background: l.color }} />
+            <span className="inline-block h-1.5 w-5" style={{ background: l.color }} />
             {l.label}
           </span>
         ))}

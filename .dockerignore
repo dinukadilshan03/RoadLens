@@ -1,4 +1,4 @@
-# Git & environment
+# Git & local environment
 .git
 .venv
 .env
@@ -6,7 +6,7 @@
 !.env.example
 .tmp-uv-cache
 
-# Python caches & testing
+# Python caches & test artifacts
 __pycache__
 *.py[cod]
 *$py.class
@@ -15,11 +15,22 @@ __pycache__
 .coverage
 htmlcov
 
-# ML datasets, runs, weights & notebook caches (prevents 10GB+ context leak)
-ml/**/data
-ml/**/runs
-ml/**/weights
-ml/**/notebooks
+# Frontend (Backend build context does not need frontend source code)
+frontend
+**/node_modules
+**/.next
+
+# ML datasets, runs, weights, archives & notebook caches (prevents multi-GB context leak)
+**/data
+**/data/**
+**/runs
+**/runs/**
+**/weights
+**/weights/**
+**/notebooks
+**/notebooks/**
+**/fixtures
+**/fixtures/**
 **/.ipynb_checkpoints
 *.pt
 *.pth
@@ -27,12 +38,17 @@ ml/**/notebooks
 *.engine
 *.safetensors
 *.tflite
+*.zip
+*.tar
+*.tar.gz
 *.cache
 wandb
 
-# Frontend build artifacts
-frontend/web/node_modules
-frontend/web/.next
+# Documentation and tests (not needed inside application runtime container)
+docs
+**/tests
+*.md
+!README.md
 
 # OS & IDE metadata
 .DS_Store
@@ -43,16 +59,3 @@ frontend/web/.next
 .vscode
 .idea
 *.log
-
-# Documentation and tests (not needed inside application runtime container)
-docs
-tests
-notebooks
-.env
-.env.*
-.tmp-uv-cache
-
-# C4 local run folders and generated demo models
-ml/c4/runs
-ml/c4/models/demo
-ml/c4/models/demo_out

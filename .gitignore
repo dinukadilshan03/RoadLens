@@ -26,14 +26,12 @@ htmlcov/
 # Jupyter Notebooks
 .ipynb_checkpoints/
 
-# IDEs & editors
+# IDEs, editors & OS metadata
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# Operating system files
 .DS_Store
 .DS_Store?
 ._*
@@ -41,6 +39,12 @@ htmlcov/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Node.js & Web builds repo-wide
+node_modules/
+.next/
+out/
+.vercel/
 
 # Large model weights repo-wide
 *.pt
@@ -50,7 +54,27 @@ Thumbs.db
 *.safetensors
 *.tflite
 *.bin
+*.h5
+*.hdf5
 
-# Logs
+# Archives & dataset bundles repo-wide
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# ML experiment runs, caches & tracking repo-wide
+runs/
+experiments/
+wandb/
+.cache/
+*.cache
+
+# Logs & temporary files
 *.log
-
+*.tmp
+*.bak
+*.orig
+*.rej
