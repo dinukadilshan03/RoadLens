@@ -1,0 +1,18 @@
+{
+  "bundle_version": "C3-14.1.0-development-prototype",
+  "selected_mode": "DIRECT_RGB_MASK",
+  "source_training_checkpoint": "/content/drive/MyDrive/crdl_experiments/component3_fresh_v1/05_training_runs/C3-12_section05_main_training_20261021T062404Z_3206b0/direct_rgb_mask_last.pt",
+  "source_training_checkpoint_sha256": "f0fc90c3f7f8775ddc0d968600d8ab8bf97514ab2a79bdf04bdfc962377ad2c3",
+  "source_dev_metrics_sha256": "f6378a57cd380ff70f9c499f0c9bc0ba8ea53de452b280c0ea527b3fc215e4b5",
+  "selected_checkpoint_sha256": "2961e3bfcfbf9b4ea620152728863645e9ceac73a7589fdd7793bd3c428215cc",
+  "architecture_sha256": "b694d3e0d3a8eb27a96829d404ff9ba33e43c7d14203d2c4e092864f5ae83dda",
+  "input": "RGB uint8 HxWx3 and aligned binary pothole mask, optional crack mask",
+  "output": "Raw optical-axis depression in unverified sensor units",
+  "physical_units_verified": false,
+  "road_normal_depth_verified": false,
+  "severity_validated": false,
+  "uncertainty_calibrated": false,
+  "development_selected": true,
+  "independent_scene_test_passed": false,
+  "requires_component1_component2_handoff_test": true
+}
