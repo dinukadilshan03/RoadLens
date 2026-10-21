@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "RoadLense App",
+  icons: { icon: "/logo.png", apple: "/logo.png" },
   description: "Inspect road damage, understand pavement severity, and assess ride quality with RoadLense.",
 };
 

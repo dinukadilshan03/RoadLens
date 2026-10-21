@@ -44,6 +44,9 @@ body {
 .home-header, .home-hero, .home-overview, .capabilities-section, .workflow-section, .home-cta, .home-footer { width: min(1280px, calc(100% - 96px)); margin-inline: auto; }
 .home-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 100px; }
 .home-brand { display: inline-flex; align-items: center; font-size: 25px; font-weight: 750; letter-spacing: -1.2px; }
+.road-home .home-logo { display: block; width: 250px; height: auto; }
+.road-home .home-footer .home-logo { width: 200px; }
+@media (max-width: 480px) { .road-home .home-header .home-logo { width: 160px; } }
 .brand-dot { color: #977021; }
 .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; background: var(--ink); color: var(--accent); margin-right: 10px; border-radius: 50%; font-size: 24px; transform: rotate(-12deg); }
 .home-header nav { display: flex; gap: 32px; font-size: 13px; font-weight: 500; }

@@ -59,3 +59,6 @@ docs
 .vscode
 .idea
 *.log
+
+# The selected C3 runtime bundle is required for inference.
+!ml/c3/selected_model.pt
