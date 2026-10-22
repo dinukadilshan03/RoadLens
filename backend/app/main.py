@@ -8,6 +8,7 @@ from backend.app.database import check_database
 from backend.app.routes.c3 import router as c3_router
 from backend.app.services.c3 import lifespan
 from backend.app.routes.c1 import router as c1_router
+from backend.app.routes.c2 import router as c2_router
 from backend.app.routes.c4 import router as c4_router
 
 app = FastAPI(
@@ -18,6 +19,7 @@ app = FastAPI(
 
 app.include_router(c3_router, prefix="/api/v1")
 app.include_router(c1_router, prefix="/api/v1")
+app.include_router(c2_router, prefix="/api/v1")
 app.include_router(c4_router, prefix="/api/v1")
 
 

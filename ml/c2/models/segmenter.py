@@ -71,7 +71,7 @@ class DualStreamLTCASegmenter(nn.Module):
         if cgan_weights_path is not None:
             weights_path = Path(cgan_weights_path)
             if weights_path.exists():
-                state_dict = torch.load(weights_path, map_location="cpu")
+                state_dict = torch.load(weights_path, map_location="cpu", weights_only=False)
                 # Handle full checkpoint vs state_dict
                 if "generator_state_dict" in state_dict:
                     state_dict = state_dict["generator_state_dict"]
@@ -172,6 +172,8 @@ class DualStreamLTCASegmenter(nn.Module):
         # 5. Progressive Decoding
         d1 = self.dec_high(f_fused_high)  # 16x16 -> 32x32
         d2 = self.dec_mid(d1, f_gated_spatial)  # 32x32 + 64x64 skip -> 64x64
-        prob_map = self.dec_final(d2)  # 64x64 -> 128x128 -> 256x256
+        prob_map = self.dec_final(d2)
+        if prob_map.shape[-2:] != rgb.shape[-2:]:
+            prob_map = F.interpolate(prob_map, size=rgb.shape[-2:], mode="bilinear", align_corners=False)
 
         return prob_map, alpha, pseudo_thm
