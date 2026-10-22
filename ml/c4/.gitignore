@@ -1,5 +1,3 @@
 runs/
 # Colab test packages (model weights + PVS data); never committed.
 *.zip
-# Research notebooks contain outputs (results, plots); kept locally, not committed.
-notebooks/*.ipynb

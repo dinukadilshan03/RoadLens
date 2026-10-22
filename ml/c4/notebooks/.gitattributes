@@ -1,4 +1,2 @@
-# Strip notebook outputs when committing; local files keep their outputs.
-# One-time setup per clone:  pip install nbstripout  &&  nbstripout --install
-*.ipynb filter=nbstripout
+# Notebooks are committed with the outputs of their final Colab runs, so results and figures show on GitHub.
 *.ipynb diff=ipynb
