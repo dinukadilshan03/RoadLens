@@ -1,76 +1,240 @@
-/* C2 Multi-Modal Segmentation Lab Theme & Visualizations */
+/* C2 Multi-Modal Segmentation Lab — light theme aligned with the RoadLens home page.
+ *
+ * The C2 components are written with Tailwind slate/indigo/emerald/rose utilities.
+ * Tailwind v4 resolves every color utility through `var(--color-*)`, so instead of
+ * rewriting each class we remap those palette variables inside `.c2-lab` to the
+ * home page's sage / cream / deep-green-ink / gold palette. The slate scale is
+ * inverted (950 = lightest surface, 50 = darkest ink) so the existing
+ * "dark surface + light text" pairings render as "light surface + dark text".
+ */
 
 .c2-lab {
+  /* Home page design tokens */
+  --ink: #243531;
+  --muted: #58645c;
+  --accent: #edcb65;
+  --sage: #596e47;
+  --line: #c9d1bf;
+
+  /* Neutral scale (inverted slate): surfaces -> borders -> muted text -> ink */
+  --color-slate-950: #f2f4ec;
+  --color-slate-900: #fbfbf7;
+  --color-slate-850: #e3e8db;
+  --color-slate-800: #d9dfcf;
+  --color-slate-700: #c3ccb8;
+  --color-slate-600: #9aa89b;
+  --color-slate-500: #6f7b72;
+  --color-slate-400: #58645c;
+  --color-slate-300: #3f4d47;
+  --color-slate-200: #2f3f3a;
+  --color-slate-100: #243531;
+  --color-slate-50: #1b2925;
+
+  /* Image wells & overlay chips: soft cream instead of black */
+  --color-black: #eef1e7;
+
+  /* Primary accent (was indigo) -> home "ink" greens */
+  --color-indigo-950: #e7ede0;
+  --color-indigo-900: #dfe7d6;
+  --color-indigo-800: #c5d2b9;
+  --color-indigo-700: #a9baa0;
+  --color-indigo-600: #243531;
+  --color-indigo-500: #34554b;
+  --color-indigo-400: #3d6657;
+  --color-indigo-300: #2f5446;
+  --color-indigo-200: #27463b;
+  --color-indigo-100: #1f3a31;
+
+  /* Success / topology (was emerald) -> olive */
+  --color-emerald-950: #eaf0dd;
+  --color-emerald-900: #e2eacf;
+  --color-emerald-800: #cbd9b4;
+  --color-emerald-700: #a9bf8b;
+  --color-emerald-600: #5f7f36;
+  --color-emerald-500: #759943;
+  --color-emerald-400: #577a2f;
+  --color-emerald-300: #4b6b28;
+  --color-emerald-200: #3f5a22;
+
+  /* Thermal stream (was rose / pink) -> terracotta */
+  --color-rose-950: #f7ebe3;
+  --color-rose-900: #f3e1d5;
+  --color-rose-800: #e6c6b2;
+  --color-rose-700: #d6a68a;
+  --color-rose-600: #a4522f;
+  --color-rose-500: #b8613b;
+  --color-rose-400: #a4522f;
+  --color-rose-300: #8f4527;
+  --color-rose-200: #7a3a21;
+  --color-pink-500: #c27a4f;
+  --color-pink-400: #a95f3a;
+  --color-pink-300: #94512f;
+
+  /* Info accents (was cyan / sky / blue) -> muted teal */
+  --color-cyan-950: #e4eeec;
+  --color-cyan-900: #d9e8e5;
+  --color-cyan-800: #bcd5d1;
+  --color-cyan-500: #4c8a84;
+  --color-cyan-400: #3c7770;
+  --color-cyan-300: #31665f;
+  --color-sky-500: #5a8f96;
+  --color-sky-400: #4a7f86;
+  --color-sky-300: #3d6d73;
+  --color-blue-950: #e4ebef;
+  --color-blue-900: #d8e3ea;
+  --color-blue-800: #bccfdb;
+  --color-blue-600: #3d6d86;
+  --color-blue-500: #4a7d96;
+  --color-blue-400: #3d6d86;
+  --color-blue-300: #335d73;
+
+  /* Warning (amber) -> home gold */
+  --color-amber-950: #f7f0d8;
+  --color-amber-900: #f3e8c6;
+  --color-amber-800: #e6d39a;
+  --color-amber-500: #b6943c;
+  --color-amber-400: #977021;
+  --color-amber-300: #84611b;
+
   min-height: 100vh;
-  background-color: #090d16;
-  color: #e2e8f0;
-  font-family: var(--font-sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  color: var(--ink);
+  background-color: #e4e8dc;
+  background-image:
+    radial-gradient(ellipse at 0% 5%, #d1dbc8 0%, transparent 42%),
+    radial-gradient(ellipse at 100% 38%, #dccfae66 0%, transparent 40%),
+    repeating-radial-gradient(ellipse at 110% 12%, transparent 0 65px, #526c4910 66px 67px, transparent 68px 100px);
+  background-attachment: fixed;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
 }
 
-.c2-gradient-header {
-  background: radial-gradient(120% 120% at 50% 0%, rgba(79, 70, 229, 0.15) 0%, rgba(15, 23, 42, 0) 100%);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+.c2-lab a:focus-visible,
+.c2-lab button:focus-visible {
+  outline: 3px solid #49826c;
+  outline-offset: 3px;
 }
 
+/* `border-slate-850` is not a default Tailwind shade, so define it explicitly. */
+.c2-lab .border-slate-850 { border-color: var(--color-slate-850); }
+
+/* ---------- Header (mirrors the home page header) ---------- */
+.c2-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(228, 232, 220, 0.82);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #c9d1bf99;
+}
+.c2-topbar-inner {
+  width: min(1280px, calc(100% - 48px));
+  margin-inline: auto;
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.c2-topbar .c2-logo { display: block; width: 190px; height: auto; }
+.c2-topbar nav { display: flex; gap: 28px; font-size: 13px; font-weight: 500; }
+.c2-topbar nav a { color: var(--muted); text-decoration: none; transition: color .2s; padding-bottom: 3px; border-bottom: 2px solid transparent; }
+.c2-topbar nav a:hover { color: var(--ink); }
+.c2-topbar nav a[aria-current="page"] { color: var(--ink); font-weight: 650; border-bottom-color: var(--accent); }
+.c2-ghost-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 5px;
+  border: 1px solid #9aa89b;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background .2s, transform .2s;
+}
+.c2-ghost-button:hover { background: #edf0e7; transform: translateY(-1px); }
+.c2-ghost-button:disabled { opacity: .6; transform: none; }
+@media (max-width: 900px) { .c2-topbar nav { display: none; } }
+@media (max-width: 480px) { .c2-topbar .c2-logo { width: 150px; } }
+
+/* ---------- Intro (editorial heading like the home hero) ---------- */
+.c2-intro { position: relative; padding: 34px 0 6px 0; }
+.c2-intro::before {
+  content: '';
+  position: absolute;
+  top: 38px;
+  bottom: 8px;
+  left: -20px;
+  width: 3px;
+  background: repeating-linear-gradient(to bottom, #b6943c70 0 18px, transparent 18px 34px);
+}
+.c2-eyebrow { display: flex; align-items: center; gap: 10px; font-size: 10px; font-weight: 650; letter-spacing: 1.8px; color: var(--ink); text-transform: uppercase; }
+.c2-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #759943; }
+.c2-intro h1 { font-size: clamp(34px, 4vw, 54px); line-height: 1.06; letter-spacing: -2.4px; font-weight: 550; margin: 18px 0 14px; color: var(--ink); }
+.c2-intro h1 em { color: var(--sage); font-family: Georgia, serif; font-weight: 400; letter-spacing: -1.6px; }
+.c2-intro p { color: var(--muted); font-size: 14px; line-height: 1.75; max-width: 620px; }
+.c2-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.c2-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #c3ccb8;
+  background: #fbfbf7b3;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 550;
+}
+.c2-chip i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+/* ---------- Cards & panels ---------- */
 .c2-glass-card {
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  background: rgba(251, 251, 247, 0.82);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(36, 53, 49, 0.04), 0 8px 24px -14px rgba(36, 53, 49, 0.22);
 }
 
 .c2-quadrant-panel {
   position: relative;
-  background: #0d121f;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: #fbfbf7;
+  border: 1px solid var(--line);
   border-radius: 0.75rem;
   overflow: hidden;
-  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(36, 53, 49, 0.04), 0 10px 26px -18px rgba(36, 53, 49, 0.28);
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
-
 .c2-quadrant-panel:hover {
-  border-color: rgba(99, 102, 241, 0.5);
-  box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.25);
+  border-color: #9aa89b;
+  box-shadow: 0 2px 4px rgba(36, 53, 49, 0.05), 0 18px 34px -20px rgba(36, 53, 49, 0.35);
 }
 
-.c2-badge-thermal {
-  background: linear-gradient(135deg, rgba(244, 63, 94, 0.2) 0%, rgba(249, 115, 22, 0.2) 100%);
-  border: 1px solid rgba(244, 63, 94, 0.4);
-  color: #fb7185;
-}
+.c2-badge-thermal { background: #f6e7dd; border: 1px solid #e0bba5; color: #8f4527; }
+.c2-badge-ltca { background: #e7ede0; border: 1px solid #c5d2b9; color: #2f5446; }
+.c2-badge-topo { background: #fbf3d6; border: 1px solid #e3cf8c; color: #7a5a17; }
 
-.c2-badge-ltca {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
-  border: 1px solid rgba(99, 102, 241, 0.4);
-  color: #818cf8;
-}
+/* Inferno-matching legend for the synthesized thermal map */
+.c2-inferno-bar { background: linear-gradient(90deg, #000004 0%, #57106e 30%, #bc3754 55%, #f98e09 80%, #fcffa4 100%); }
 
-.c2-badge-topo {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #34d399;
-}
-
-/* Draggable split lens comparator */
+/* ---------- Draggable split lens comparator ---------- */
 .split-lens-container {
   position: relative;
   user-select: none;
   overflow: hidden;
   border-radius: 0.75rem;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 14px 34px -18px rgba(36, 53, 49, 0.45);
 }
-
 .split-lens-divider {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 3px;
-  background: #ffffff;
+  background: var(--accent);
   cursor: ew-resize;
   z-index: 30;
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 1px rgba(36, 53, 49, 0.25);
 }
-
 .split-lens-handle {
   position: absolute;
   top: 50%;
@@ -79,31 +243,31 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  background: #fbfbf7;
+  border: 2px solid var(--accent);
+  box-shadow: 0 4px 12px rgba(36, 53, 49, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #0f172a;
+  color: var(--ink);
 }
 
-/* Alpha Attention Gate Gauge */
+/* ---------- Alpha attention gate gauge ---------- */
 .alpha-gauge-track {
   height: 8px;
-  background: linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #f43f5e 100%);
+  background: linear-gradient(90deg, #5a8f96 0%, #759943 50%, #b8613b 100%);
   border-radius: 4px;
   position: relative;
 }
-
 .alpha-gauge-pointer {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
   width: 16px;
   height: 16px;
-  background: #ffffff;
-  border: 2px solid #6366f1;
+  background: #fbfbf7;
+  border: 2px solid var(--ink);
   border-radius: 50%;
-  box-shadow: 0 0 10px #6366f1;
+  box-shadow: 0 2px 6px rgba(36, 53, 49, 0.35);
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

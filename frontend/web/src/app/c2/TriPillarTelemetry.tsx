@@ -11,8 +11,10 @@ export default function TriPillarTelemetry({
   metrics,
   alphaScore,
 }: TriPillarTelemetryProps) {
-  const mIoU = metrics?.miou ?? 0.8183;
-  const f1 = metrics?.f1_score ?? 0.885;
+  const rawMIoU = metrics?.miou ?? 0.8183;
+  const mIoU = rawMIoU > 1 ? rawMIoU / 100 : rawMIoU;
+  const rawF1 = metrics?.f1_score ?? 0.885;
+  const f1 = rawF1 > 1 ? rawF1 / 100 : rawF1;
   const continuity = metrics?.topological_continuity ?? 0.924;
   const latency = metrics?.latency_ms ?? 24.6;
   const vram = metrics?.vram_mb ?? 67;
