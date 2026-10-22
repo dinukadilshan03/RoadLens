@@ -127,24 +127,22 @@ class PostgresRunStore:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
-        self._init_db()
+        self._schema_ready = False
 
     @contextmanager
     def _conn(self):
         params = connection_params()
         params.setdefault("connect_timeout", 2)
+        if not self._schema_ready:
+            with self._lock:
+                if not self._schema_ready:
+                    with psycopg.connect(**params) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(SCHEMA)
+                        conn.commit()
+                    self._schema_ready = True
         with psycopg.connect(**params) as conn:
             yield conn
-
-    def _init_db(self) -> None:
-        try:
-            with self._conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(SCHEMA)
-                conn.commit()
-        except Exception:
-            # Fallback handled gracefully in single-tenant dev or tests
-            pass
 
     def new(
         self,

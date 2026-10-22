@@ -1,17 +1,24 @@
 # Git & local environment
 .git
 .venv
+venv
+env
 .env
 .env.*
 !.env.example
 .tmp-uv-cache
+.uv-cache
+.pip-cache
+.agents
+graphify-out
 
 # Python caches & test artifacts
-__pycache__
-*.py[cod]
-*$py.class
+**/__pycache__
+**/*.py[cod]
+**/*$py.class
 .pytest_cache
 .ruff_cache
+.mypy_cache
 .coverage
 htmlcov
 
@@ -20,17 +27,25 @@ frontend
 **/node_modules
 **/.next
 
-# ML datasets, runs, weights, archives & notebook caches (prevents multi-GB context leak)
-**/data
-**/data/**
+# ML datasets, runs, weights, archives & Colab training artifacts (prevents multi-GB context leak)
+ml/c1/data
+ml/c1/data/**
+ml/c1/scripts
+ml/c1/configs
+ml/c2/configs
+ml/c2/data/*
+!ml/c2/data/__init__.py
+!ml/c2/data/irt_dataset.py
+!ml/c2/data/samples
+!ml/c2/data/samples/**
 **/runs
 **/runs/**
+**/experiments
+**/experiments/**
 **/weights
 **/weights/**
 **/notebooks
 **/notebooks/**
-**/fixtures
-**/fixtures/**
 **/.ipynb_checkpoints
 *.pt
 *.pth
@@ -38,14 +53,25 @@ frontend
 *.engine
 *.safetensors
 *.tflite
+*.joblib
 *.zip
 *.tar
 *.tar.gz
 *.cache
 wandb
 
+# Keep lightweight runtime demo fixtures required by C1 and C4 demo endpoints
+**/fixtures/*
+!ml/c1/fixtures
+!ml/c1/fixtures/samples
+!ml/c1/fixtures/samples/**
+!ml/c4/fixtures
+!ml/c4/fixtures/synthetic_drive
+!ml/c4/fixtures/synthetic_drive/**
+
 # Documentation and tests (not needed inside application runtime container)
 docs
+tests
 **/tests
 *.md
 !README.md

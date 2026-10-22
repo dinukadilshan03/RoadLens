@@ -166,9 +166,10 @@ def build_router(
                 cv2.line(img, (40, 20), (210, 230), (30, 30, 30), 3)
                 cv2.imwrite(str(input_crop_path), img)
         elif c1_run_id and c1_observation_id:
-            # Look up crop artifact from C1 storage
-            c1_storage = storage_dir.parent / "c1" / "runs" / c1_run_id / "outputs" / "crops"
-            found = list(c1_storage.glob(f"*{c1_observation_id}*"))
+            # Look up crop artifact from C1 storage (supports both C1_STORAGE_DIR volume and local ml/c1/runs)
+            c1_root = Path(os.environ.get("C1_STORAGE_DIR") or (C2_DIR.parent / "c1" / "runs"))
+            c1_storage = c1_root / c1_run_id / "outputs" / "crops"
+            found = list(c1_storage.glob(f"*{c1_observation_id}*")) if c1_storage.exists() else []
             if found:
                 shutil.copy(found[0], input_crop_path)
             else:
