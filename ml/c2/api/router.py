@@ -132,11 +132,25 @@ def build_router(
     ):
         target_file = crop_file if (crop_file is not None and crop_file.filename) else image
         active_sample_id = sample_id or preset_id
+
+        # Intelligent defect class resolution from filename if damage_class is auto/unspecified
+        resolved_damage_class = damage_class
+        if target_file is not None and target_file.filename and resolved_damage_class in ("auto", "crack", "default", ""):
+            fname_lower = target_file.filename.lower()
+            if any(k in fname_lower for k in ["pothole", "d40", "hole", "cavity", "water"]):
+                resolved_damage_class = "Pothole_D40"
+            elif any(k in fname_lower for k in ["grate", "drainage"]):
+                resolved_damage_class = "Drainage_Grate_OOD"
+            elif any(k in fname_lower for k in ["aligator", "alligator", "d20"]):
+                resolved_damage_class = "Alligator_Crack_D20"
+            elif any(k in fname_lower for k in ["l1", "d00", "longitudinal"]):
+                resolved_damage_class = "Longitudinal_Crack_D00"
+
         source = "c1_handoff" if (c1_run_id and c1_observation_id) else ("demo" if active_sample_id else "upload")
         meta = run_store.new(
             survey_id=survey_id,
             source=source,
-            damage_class=damage_class,
+            damage_class=resolved_damage_class,
             c1_run_id=c1_run_id,
             c1_observation_id=c1_observation_id,
         )
@@ -156,6 +170,11 @@ def build_router(
                 "glare_alligator": C2_DIR / "data" / "samples" / "sample_glare_alligator.jpg",
                 "drainage_grate": C2_DIR / "data" / "samples" / "sample_drainage_grate.jpg",
                 "pothole_water": C2_DIR / "data" / "samples" / "sample_pothole_water.jpg",
+                "l1": C2_DIR / "data" / "samples" / "L1.jpg",
+                "L1": C2_DIR / "data" / "samples" / "L1.jpg",
+                "aligator": C2_DIR / "data" / "samples" / "aligatorc.jpg",
+                "aligatorc": C2_DIR / "data" / "samples" / "aligatorc.jpg",
+                "pothole": C2_DIR / "data" / "samples" / "pothole.jpg",
             }
             src = sample_file_map.get(active_sample_id)
             if src and src.exists():
@@ -189,13 +208,14 @@ def build_router(
                 req = C2Request(
                     survey_id=survey_id,
                     input_crop_path=input_crop_path,
-                    damage_class=damage_class,
+                    damage_class=resolved_damage_class,
                     external_run_id=run_id,
                     upstream_c1_id=c1_observation_id,
                     upstream_c1_run_id=c1_run_id,
                     cgan_weights_path=cgan_weights_path,
                     segmenter_weights_path=segmenter_weights_path,
                     threshold=threshold,
+                    preset_id=active_sample_id,
                 )
                 res = run_segmenter(req, ctx)
                 run_store.complete(

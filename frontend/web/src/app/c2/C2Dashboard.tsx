@@ -328,20 +328,46 @@ export default function C2Dashboard() {
 
   // Handle Custom File Upload
 
-  const handleUploadFile = async (file: File) => {
-
+  const handleUploadFile = async (file: File, damageClass: string = "auto") => {
     setIsLoading(true);
-
     setError(null);
-
     try {
+      let resolvedClass = damageClass;
+      const fnameLower = file.name.toLowerCase();
+
+      // If user selected auto, check if filename specifies the class
+      if (resolvedClass === "auto") {
+        if (
+          fnameLower.includes("pothole") ||
+          fnameLower.includes("hole") ||
+          fnameLower.includes("d40") ||
+          fnameLower.includes("cavity") ||
+          fnameLower.includes("water")
+        ) {
+          resolvedClass = "Pothole_D40";
+        } else if (
+          fnameLower.includes("aligator") ||
+          fnameLower.includes("alligator") ||
+          fnameLower.includes("d20")
+        ) {
+          resolvedClass = "Alligator_Crack_D20";
+        } else if (fnameLower.includes("grate") || fnameLower.includes("drainage")) {
+          resolvedClass = "Drainage_Grate_OOD";
+        } else if (
+          fnameLower.includes("l1") ||
+          fnameLower.includes("crack") ||
+          fnameLower.includes("d00") ||
+          fnameLower.includes("longitudinal")
+        ) {
+          resolvedClass = "Longitudinal_Crack_D00";
+        } else {
+          resolvedClass = "auto";
+        }
+      }
 
       const formData = new FormData();
-
-      formData.append("damage_class", "Longitudinal_Crack_D00");
-
+      formData.append("damage_class", resolvedClass);
       formData.append("survey_id", "SURVEY-CUSTOM-UPLOAD");
-
       formData.append("image", file, file.name);
 
 
