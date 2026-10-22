@@ -4,7 +4,7 @@ import homeImage from "../../public/home_image.png";
 
 const capabilities = [
   { id: "01", label: "Detect", title: "Find the damage.", text: "Locate potholes and surface cracks in road images. Review each detection before taking the next step.", image: "01_detect_road_damage.png", alt: "Road damage illustration with yellow detection boxes around potholes and cracks", href: "/c1", action: "Open damage detection" },
-  { id: "02", label: "Segment", title: "See every detail.", text: "Trace damaged surfaces with pixel-level crack masks, using the regions identified during detection.", image: "02_segment_cracks_potholes.png", alt: "Road damage illustration with red pothole masks and blue crack segmentation", href: null, action: "Within the analysis pipeline" },
+  { id: "02", label: "Segment", title: "See every detail.", text: "Trace damaged surfaces with pixel-level crack masks, using the regions identified during detection.", image: "02_segment_cracks_potholes.png", alt: "Road damage illustration with red pothole masks and blue crack segmentation", href: "/c2", action: "Open segmentation lab" },
   { id: "03", label: "Measure", title: "Understand the impact.", text: "Use segmented damage to assess severity and estimate physical dimensions for a closer condition review.", image: "03_measure_damage_geometry.png", alt: "Illustration of pothole and crack geometry with width and depth measurements", href: null, action: "Within the analysis pipeline" },
   { id: "04", label: "Assess", title: "Read the road ahead.", text: "Turn vehicle motion and GPS data into segment-level condition assessments to understand ride quality.", image: "04_assess_road_condition.png", alt: "Illustration of a sensor-equipped vehicle and survey crew assessing road condition", href: "/c4", action: "Open road condition" },
 ];
@@ -14,7 +14,7 @@ export default function Home() {
     <div className="road-home">
       <header className="home-header">
         <Link className="home-brand" href="/" aria-label="RoadLense home"><span className="brand-mark" aria-hidden="true">Ⅱ</span>RoadLense<span className="brand-dot">.</span></Link>
-        <nav aria-label="Main navigation"><Link href="/c1">C1 · Damage detection</Link><Link href="/c4">C4 · Road condition</Link></nav>
+        <nav aria-label="Main navigation"><Link href="/c1">C1 · Detection</Link><Link href="/c2">C2 · Segmentation</Link><Link href="/c4">C4 · Condition</Link></nav>
         <Link className="home-button small-button" href="/c1">Start an assessment <span aria-hidden="true">↗</span></Link>
       </header>
       <main>
@@ -23,7 +23,7 @@ export default function Home() {
             <p className="home-eyebrow"><span className="status-dot" /> ROAD CONDITION INTELLIGENCE</p>
             <h1 id="hero-title">Better roads start with<br /><em>a closer look.</em></h1>
             <p className="hero-description">From the first crack to the way a road feels. Bring surface damage and ride quality into one clear picture.</p>
-            <div className="hero-actions"><Link className="home-button" href="/c1">C1 · Damage detection <span aria-hidden="true">→</span></Link><Link className="home-button home-button-secondary" href="/c4">C4 · Road condition <span aria-hidden="true">→</span></Link></div>
+            <div className="hero-actions"><Link className="home-button" href="/c1">C1 · Detection <span aria-hidden="true">→</span></Link><Link className="home-button home-button-secondary" href="/c2">C2 · Segmentation <span aria-hidden="true">→</span></Link><Link className="home-button home-button-secondary" href="/c4">C4 · Condition <span aria-hidden="true">→</span></Link></div>
             <p className="hero-footnote"><span aria-hidden="true">+</span> Image-based inspection. Sensor-based insight.</p>
           </div>
           <div className="hero-road-scene">
