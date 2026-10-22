@@ -1,0 +1,19 @@
+{
+  "entrypoint": "Component3SeverityBridge(bundle_dir, device).predict(rgb_uint8, detections, include_maps=False, field_measurements=None)",
+  "field_measurements": "Optional mapping: defect_id -> physical field record",
+  "additional_output": "defects[].field_reference_severity",
+  "unchanged_model_output": "defects[].severity.physical_level = null",
+  "units": "Manual deepest_point_mm uses millimetres; no automatic RAW conversion",
+  "required_field_evidence": [
+    "source=MANUAL_FIELD_MEASUREMENT",
+    "road_surface_type=ASPHALT_CONCRETE",
+    "fhwa_150mm_inscribed_circle_confirmed=True",
+    "healthy_road_reference_verified=True",
+    "measurement_method=STRAIGHTEDGE_RULER or ROAD_REFERENCE_DEPTH_GAUGE",
+    "deepest_point_mm must be positive"
+  ],
+  "optional": [
+    "nine_point_depths_mm: 9 readings",
+    "depth_uncertainty_mm: nonnegative"
+  ]
+}

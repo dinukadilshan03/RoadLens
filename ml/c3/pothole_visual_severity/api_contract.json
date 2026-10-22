@@ -1,0 +1,18 @@
+{
+  "name": "C3-22 VisualSeverityClassifier.predict",
+  "inputs": {
+    "rgb_uint8": "ndarray uint8 HxWx3",
+    "bbox_xyxy": "4 integers, half-open, original image coordinate system"
+  },
+  "outputs": {
+    "visual_severity": "LOW|MODERATE|HIGH|NEEDS_REVIEW",
+    "suggested_class": "LOW|MODERATE|HIGH",
+    "review_required": "boolean",
+    "model_score_uncalibrated": "float; internal only",
+    "severity_kind": "EXPERIMENTAL_IMAGE_VISUAL_SEVERITY",
+    "physical_severity": "null",
+    "physical_dimensions": "null"
+  },
+  "integration": "Route potholes only through classifier; cracks require separately trained, labeled model. Keep existing C3-20 field-reference policy separate.",
+  "user_export": "PDF only; no JSON download action"
+}

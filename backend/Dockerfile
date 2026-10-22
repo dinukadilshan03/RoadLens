@@ -29,7 +29,7 @@ COPY ml/c4/requirements.lock ./ml/c4/requirements.lock
 # Install dependencies into /app/.venv with persistent BuildKit cache and no redundant layers
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev && \
-    uv pip install --python /app/.venv/bin/python -r ml/c4/requirements.lock scikit-image
+    uv pip install --python /app/.venv/bin/python -r ml/c4/requirements.lock scikit-image torchvision
 
 # Copy application packages directly with appuser ownership (avoids slow recursive chown on .venv)
 COPY --chown=appuser:appuser backend ./backend

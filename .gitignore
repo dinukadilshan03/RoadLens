@@ -48,6 +48,7 @@ out/
 
 # Large model weights repo-wide
 *.pt
+*.joblib
 *.pth
 *.onnx
 *.engine

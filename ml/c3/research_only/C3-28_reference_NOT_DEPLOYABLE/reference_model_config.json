@@ -1,0 +1,25 @@
+{
+  "version": "C3-28.0.0-experimental",
+  "train_count": 67,
+  "val_count": 17,
+  "frozen_dev_count": 72,
+  "seed": 20261022,
+  "best_epoch": 34,
+  "model_passes_reference_baselines_on_dev": false,
+  "raw_coordinate_only": true,
+  "real_metric_validation": false,
+  "independent_scene_generalization": false,
+  "physical_severity_from_model": false,
+  "training_source": "STRICT-quality PothRGBD paired RAW depth",
+  "intra_training_validation_baselines_passed": true,
+  "frozen_development_baselines_passed": false,
+  "learned_reference_deployment_authorized": false,
+  "reference_selection_status": "RESEARCH_ONLY_NOT_DEPLOYED",
+  "frozen_dev_mae_raw": {
+    "trained_ref_mae_raw": 43.2821299235026,
+    "flat_mae_raw": 59.21562190188302,
+    "train_mean_mae_raw": 42.75877335336473
+  },
+  "selection_reason": "Frozen development: learned 43.282 RAW > training-mean 42.759 RAW. Independent scene/metric validation not established.",
+  "historical_model_checkpoint_preserved": true
+}

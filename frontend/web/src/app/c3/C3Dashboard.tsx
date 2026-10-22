@@ -1,64 +1,80 @@
-/* eslint-disable @next/next/no-img-element -- Local uploaded images use browser data URLs. */
+/* eslint-disable @next/next/no-img-element -- Local uploaded images and backend visualizations. */
 "use client";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { analyzeSurface, type Analysis } from "./api";
+import {
+  analyzeSurface,
+  downloadReport,
+  type Analysis,
+} from "./api";
 import GeometryViewer from "./components/GeometryViewer";
+import ResearchEvidence from "./components/ResearchEvidence";
+import AssessmentSummary from "./components/AssessmentSummary";
 
 function usePreview(file?: File) {
-  const [url, setUrl] = useState("");
+  const [preview, setPreview] = useState<{ file: File; url: string }>();
   useEffect(() => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setUrl(String(reader.result));
+    reader.onload = () => setPreview({ file, url: String(reader.result) });
     reader.readAsDataURL(file);
     return () => reader.abort();
   }, [file]);
-  return file ? url : "";
+  return preview?.file === file ? preview?.url || "" : "";
 }
 export default function C3Dashboard() {
   const [image, setImage] = useState<File>();
   const [mask, setMask] = useState<File>();
   const [crack, setCrack] = useState<File>();
+  const [crackImage, setCrackImage] = useState<File>();
+  const [crackMatchesImage, setCrackMatchesImage] = useState(false);
   const [result, setResult] = useState<Analysis>();
   const [selected, setSelected] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [dimensions, setDimensions] = useState<Record<string, { width: number; height: number }>>({});
   const imageUrl = usePreview(image),
-    maskUrl = usePreview(mask);
+    maskUrl = usePreview(mask),
+    crackUrl = usePreview(crack),
+    crackImageUrl = usePreview(crackImage);
   const defect = result?.defects[selected];
+  const sourceWidth = defect?.source_width || result?.frame_width || 1;
+  const sourceHeight = defect?.source_height || result?.frame_height || 1;
+  const sourceImage = defect?.source_group === "crack" ? crackImageUrl || (defect?.source_kind === "photo" ? imageUrl : crackUrl) : imageUrl;
+  const sourceDefects = result?.defects.filter((d) => d.source_group === defect?.source_group) || [];
   function invalidate() {
     setResult(undefined);
     setError("");
     setSelected(0);
   }
   async function analyze() {
-    if (!image || !mask) return;
+    if (!(image && mask) && !crack) return;
     setBusy(true);
     setError("");
     setResult(undefined);
     try {
-      setResult(await analyzeSurface(image, mask, crack));
+      setResult(await analyzeSurface(image, mask, crack, undefined, crackImage, crackMatchesImage));
       setSelected(0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to analyze image");
+      setError(err instanceof Error ? err.message : "Unable to analyze");
     } finally {
       setBusy(false);
     }
   }
-  function exportReport() {
-    const blob = new Blob([JSON.stringify(result, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob),
-      a = document.createElement("a");
-    a.href = url;
-    a.download = "roadlens-surface-analysis.json";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  async function exportReport() {
+    if (!result) return;
+    setExporting(true);
+    setError("");
+    try {
+      await downloadReport(image, mask, crack, undefined, crackImage, crackMatchesImage);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create report");
+    } finally {
+      setExporting(false);
+    }
   }
-  const stages = ["Input", "Mask", "Geometry", "Analysis", "Results"];
   return (
     <div className="c3-workspace">
       <header className="c3-header">
@@ -73,11 +89,11 @@ export default function C3Dashboard() {
         </Link>
         <nav aria-label="Main navigation">
           <Link href="/">Home</Link>
-          <Link href="/c1">C1 · Detect</Link>
+          <Link href="/c1">C1 - Detect</Link>
           <Link href="/c3" aria-current="page">
-            C3 · Measure
+            C3 - Damage assessment
           </Link>
-          <Link href="/c4">C4 · Assess</Link>
+          <Link href="/c4">C4 - Assess</Link>
         </nav>
         <span className="c3-pill">SURFACE INTELLIGENCE</span>
       </header>
@@ -85,17 +101,17 @@ export default function C3Dashboard() {
         <section className="c3-intro">
           <div>
             <p className="c3-eyebrow">
-              COMPONENT 03 / A CLOSER LOOK BENEATH THE SURFACE
+              COMPONENT 03 / DAMAGE ASSESSMENT
             </p>
             <h1>
-              Road Surface
+              See the damage.
               <br />
-              <em>Intelligence.</em>
+              <em>Understand the surface.</em>
             </h1>
             <p>
-              Adaptive surface reconstruction & geometric depression analysis.
+              Explore potholes and cracks through clear visual analysis.
               <br />
-              From a road image to a more informed surface review.
+              Make your next road inspection more informed.
             </p>
           </div>
           <div className="c3-intro-note">
@@ -106,120 +122,123 @@ export default function C3Dashboard() {
               Understand the limits.
             </p>
             <small>
-              Trained CRDL inference
+              Damage severity and surface shape
               <br />
-              RAW geometry · Pixel measurements
+              from your photo and marked areas.
             </small>
           </div>
         </section>
-        <section className="c3-workflow" aria-label="Analysis workflow">
-          <div>
-            <b>Analysis workflow</b>
-            <span>5 processing stages</span>
-          </div>
-          <ol>
-            {stages.map((stage, i) => (
-              <li
-                key={stage}
-                className={
-                  result
-                    ? "complete"
-                    : busy && i === 2
-                      ? "active"
-                      : i === 0
-                        ? "active"
-                        : ""
-                }
-              >
-                <span>{result ? "✓" : i + 1}</span>
-                {stage}
-              </li>
-            ))}
-          </ol>
-        </section>
         <section className="c3-panel">
-          <div className="c3-section-title">
-            <div>
-              <p className="c3-eyebrow">01 — ROAD IMAGE INPUT</p>
-              <h2>Bring the surface into view.</h2>
-            </div>
-            <span className="c3-pill">Manual now · Automatic later</span>
-          </div>
+          <p className="c3-eyebrow">01 / ROAD IMAGE INPUT</p>
+          <h2>Examine Your Road Surface</h2>
           <p className="c3-muted">
-            Upload a road image and a pothole mask. Masks are automatically resized
-            and converted to binary. Use light damage regions on a dark background.
+            Upload one road photograph and its crack mask for one network assessment.
+            Pothole masks are optional. For a mask from a different photograph,
+            supply its matching crack photograph. A mask is a black-and-white image with
+            the damage marked in white. Use PNG masks.
           </p>
           <div className="c3-upload-grid">
             {[
               {
-                title: "Upload road image",
-                hint: "Common image formats · up to 15 MB",
+                title: "Road photograph",
                 file: image,
-                accept: "image/*",
                 set: setImage,
+                hint: "Pairs with damage masks from this photograph - up to 15 MB",
               },
               {
-                title: "Upload pothole mask",
-                hint: "Image mask · automatically prepared",
+                title: "Pothole damage mask",
                 file: mask,
-                accept: "image/*",
                 set: setMask,
+                hint: "Must match the pothole photograph",
               },
               {
-                title: "Crack segmentation mask",
-                hint: "Optional · automatically resized",
+                title: "Crack damage mask",
                 file: crack,
-                accept: "image/*",
                 set: setCrack,
+                hint: "One mask is analyzed as one complete crack network",
               },
-            ].map((item, i) => (
+            ].map((item) => (
               <label className="c3-upload" key={item.title}>
-                <span className="c3-upload-icon">{i === 0 ? "↥" : "⊞"}</span>
                 <b>{item.title}</b>
                 <span>{item.file?.name || item.hint}</span>
                 <input
-                  aria-label={item.title}
                   type="file"
-                  accept={item.accept}
-                  disabled={busy}
+                  accept="image/*"
+                  aria-label={item.title}
+                  disabled={busy || exporting}
                   onChange={(e) => {
                     item.set(e.target.files?.[0]);
                     invalidate();
                   }}
                 />
+                {item.file && (
+                  <button
+                    disabled={busy || exporting}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      item.set(undefined);
+                      invalidate();
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
               </label>
             ))}
           </div>
-          {imageUrl && (
-            <div className="c3-input-preview">
-              <figure>
-                <img src={imageUrl} alt="Selected road input" />
-                <figcaption>Road image</figcaption>
-              </figure>
-              {maskUrl && (
-                <figure>
-                  <img src={maskUrl} alt="Selected binary segmentation mask" />
-                  <figcaption>Pothole segmentation</figcaption>
+          {crack && image && mask && <label className="c3-notice">
+            <input type="checkbox" checked={crackMatchesImage} disabled={busy || exporting}
+              onChange={(event) => { setCrackMatchesImage(event.target.checked); invalidate(); }} />
+            The crack mask belongs to the road photograph above
+          </label>}
+          {crack && <details className="c3-notice">
+            <summary>Use a different matching crack photograph (optional)</summary>
+            <p>The crack mask already provides shape analysis. The road photograph above is used automatically for crack-only input. With a pothole mask too, confirm that both masks belong to that photograph. Otherwise add the matching crack photograph here. Multi-branch networks require review; regional predictions do not establish overall severity.</p>
+            <label>Crack road photograph
+              <input type="file" accept="image/*" disabled={busy || exporting} onChange={(event) => { setCrackImage(event.target.files?.[0]); invalidate(); }} />
+            </label>
+            {crackImage && <button disabled={busy || exporting} onClick={() => { setCrackImage(undefined); invalidate(); }}>Remove crack photo</button>}
+          </details>}
+          <div className="c3-input-preview">
+            {[
+              { url: imageUrl, label: "Road photograph", photo: "" },
+              { url: maskUrl, label: "Pothole marked area", photo: imageUrl },
+              { url: crackUrl, label: "Crack mask", photo: crackImageUrl || ((crackMatchesImage || !mask) ? imageUrl : "") },
+              { url: crackImageUrl, label: "Crack photograph", photo: "" },
+            ]
+              .filter((p) => p.url)
+              .map((p) => (
+                <figure key={p.label}>
+                  <img src={p.url} alt={p.label} onLoad={(event) => {
+                    const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+                    setDimensions((current) => current[p.url]?.width === width && current[p.url]?.height === height
+                      ? current : { ...current, [p.url]: { width, height } });
+                  }} />
+                  <figcaption>{p.label}{dimensions[p.url] && ` (${dimensions[p.url].width} x ${dimensions[p.url].height} pixels)`}</figcaption>
+                  {p.photo && dimensions[p.url] && dimensions[p.photo] &&
+                    (dimensions[p.url].width !== dimensions[p.photo].width || dimensions[p.url].height !== dimensions[p.photo].height) &&
+                    <p className="c3-error">This mask has a different size from the photo. Replace it with the matching mask. Other valid masks can still be analyzed.</p>}
                 </figure>
-              )}
-            </div>
-          )}
+              ))}
+          </div>
           <div className="c3-submit">
             <p>
-              Physical scale is unverified.
+              Analyze a road photograph with its crack mask, a mask alone, or pothole and crack inputs together.
               <br />
-              <span>Results support review in RAW and pixel units.</span>
+              <span>Each crack mask produces one network assessment.</span>
             </p>
-            <button disabled={!image || !mask || busy} onClick={analyze}>
-              {busy ? "Analyzing with trained CRDL…" : "Analyze Road Surface"}{" "}
-              <span>↗</span>
+            <button
+              disabled={(!(image && mask) && !crack) || busy || exporting}
+              onClick={analyze}
+            >
+              {busy ? "Analyzing road surface..." : "Analyze Road Surface"}
             </button>
           </div>
           <div aria-live="polite">
+            {result?.input_warnings.map((warning) => <p className="c3-notice" key={warning.damage_type} role="status">{warning.message} Results below cover only the masks that were analyzed.</p>)}
             {busy && (
               <p className="c3-notice">
-                Inputs are being validated and processed by the geometry model.
-                Analysis and results will appear when inference completes.
+                Checking the image and analyzing the supplied damaged areas...
               </p>
             )}
             {error && (
@@ -230,170 +249,126 @@ export default function C3Dashboard() {
           </div>
         </section>
         <section className="c3-panel" aria-busy={busy}>
-          <div className="c3-section-title">
-            <div>
-              <p className="c3-eyebrow">02 — VISUAL GEOMETRY ANALYSIS</p>
-              <h2>A clearer picture of the depression.</h2>
-            </div>
-            {result && (
-              <label>
-                Defect{" "}
-                <select
-                  value={selected}
-                  onChange={(e) => setSelected(+e.target.value)}
-                >
-                  {result.defects.map((d, i) => (
-                    <option value={i} key={d.defect_id}>
-                      {d.defect_id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
-          {defect && result ? (
+          <p className="c3-eyebrow">02 / DAMAGE IDENTIFICATION</p>
+          <h2>Damage Found on Your Road</h2>
+          {result && defect ? (
             <>
-              <div className="c3-segmentation">
-                <h3>Segmentation & bounding box</h3>
-                <div
-                  className="c3-segment-frame"
-                  style={{
-                    aspectRatio: `${result.frame_width}/${result.frame_height}`,
-                  }}
-                >
-                  <img
-                    src={imageUrl}
-                    alt="Uploaded road with supplied segmentation"
-                  />
-                  {maskUrl && (
-                    <img
-                      className="c3-mask-layer"
-                      src={maskUrl}
-                      alt="Aligned supplied binary mask overlay"
-                    />
-                  )}
-                  <span
-                    style={{
-                      left: `${(defect.source_bbox_xyxy[0] / result.frame_width) * 100}%`,
-                      top: `${(defect.source_bbox_xyxy[1] / result.frame_height) * 100}%`,
-                      width: `${((defect.source_bbox_xyxy[2] - defect.source_bbox_xyxy[0]) / result.frame_width) * 100}%`,
-                      height: `${((defect.source_bbox_xyxy[3] - defect.source_bbox_xyxy[1]) / result.frame_height) * 100}%`,
-                    }}
-                  />
-                </div>
-                <p>
-                  Supplied mask · bounding box derived from nonzero pixels.
-                  Segmentation is provided by your upload.
-                </p>
+              <p className="c3-muted">
+                Select a marked area to explore its findings. Potholes are
+                outlined in amber; cracks in blue.
+              </p>
+              <div
+                className="c3-defect-tabs"
+                role="group"
+                aria-label="Select damaged area"
+              >
+                {result.defects.map((d, i) => (
+                  <button
+                    key={d.defect_id}
+                    aria-pressed={selected === i}
+                    disabled={busy || exporting}
+                    onClick={() => setSelected(i)}
+                  >
+                    {d.presentation.label}
+                  </button>
+                ))}
               </div>
-              <GeometryViewer
-                key={defect.defect_id}
-                defect={defect}
-                image={imageUrl}
-                width={result.frame_width}
-                height={result.frame_height}
-              />
+              <div
+                className="c3-image"
+                style={{
+                  aspectRatio: `${sourceWidth}/${sourceHeight}`,
+                }}
+              >
+                <img
+                  src={sourceImage}
+                  alt={defect.source_kind === "mask" ? "Separate crack mask with identified damage" : "Road photograph with identified damage"}
+                />
+                {sourceDefects.map((d) => (
+                  <button
+                    className="c3-region"
+                    key={d.defect_id}
+                    aria-label={`Select ${d.presentation.label}`}
+                    disabled={busy || exporting}
+                    onClick={() => setSelected(result.defects.findIndex((item) => item.defect_id === d.defect_id))}
+                    style={{
+                      left: `${(d.source_bbox_xyxy[0] / sourceWidth) * 100}%`,
+                      top: `${(d.source_bbox_xyxy[1] / sourceHeight) * 100}%`,
+                      width: `${((d.source_bbox_xyxy[2] - d.source_bbox_xyxy[0]) / sourceWidth) * 100}%`,
+                      height: `${((d.source_bbox_xyxy[3] - d.source_bbox_xyxy[1]) / sourceHeight) * 100}%`,
+                      borderColor:
+                        d.damage_type === "pothole" ? "#dda328" : "#2e85dc",
+                      background: defect.defect_id === d.defect_id ? "#ffffff15" : "transparent",
+                    }}
+                  >
+                    <span>{d.presentation.label}</span>
+                  </button>
+                ))}
+                {sourceDefects.map((d) => (
+                  <img
+                    key={d.defect_id}
+                    className="c3-outline"
+                    src={d.visuals.outline}
+                    alt=""
+                  />
+                ))}
+              </div>
             </>
           ) : (
             <div className="c3-empty">
-              <span>⌁</span>
-              <h3>The details will take shape here.</h3>
-              <p>
-                Analyze your road image to explore the actual depression map,
-                <br />
-                linked profile and geometric measurements.
-              </p>
-              <small>
-                Source image → Supplied segmentation → Trained inference
-              </small>
+              <h3>Your marked areas will appear here.</h3>
+              <p>Upload your image and damage masks to begin.</p>
             </div>
           )}
         </section>
-        <section className="c3-panel c3-results">
-          <div className="c3-section-title">
-            <div>
-              <p className="c3-eyebrow">03 — FINAL ANALYSIS RESULTS</p>
-              <h2>Measurements with context.</h2>
-            </div>
-            {result && (
-              <div className="c3-export">
-                <button onClick={exportReport}>Export JSON ↓</button>
-                <button onClick={() => window.print()}>Print report ↗</button>
-              </div>
-            )}
-          </div>
-          <div className="c3-metrics">
-            {[
-              {
-                name: "D95 depth",
-                value: defect?.geometry_raw?.d95_raw,
-                unit: "RAW",
-                help: "95th percentile of predicted depression within the model-space pothole mask. 95% of values are at or below this depth.",
-              },
-              {
-                name: "Mean depth",
-                value: defect?.geometry_raw?.mean_raw,
-                unit: "RAW",
-                help: "Average predicted depression within the model-space pothole mask.",
-              },
-              {
-                name: "Maximum depth",
-                value: defect?.geometry_raw?.max_raw,
-                unit: "RAW",
-                help: "Largest predicted depression value within the model-space pothole mask.",
-              },
-              {
-                name: "Footprint",
-                value: defect?.pixel_measurements.footprint_area_px2,
-                unit: "px²",
-                help: "Number of nonzero pixels in the supplied full-resolution pothole mask. This is not physical area.",
-              },
-            ].map((m) => (
-              <article key={m.name}>
-                <div>
-                  {m.name}
-                  <details>
-                    <summary aria-label={`Explain ${m.name}`}>ⓘ</summary>
-                    <p>{m.help}</p>
-                  </details>
-                </div>
-                <strong>
-                  {m.value == null
-                    ? "—"
-                    : m.value.toLocaleString(undefined, {
-                        maximumFractionDigits: 2,
-                      })}
-                </strong>
-                <span>{m.unit}</span>
-              </article>
-            ))}
-          </div>
-          <div className="c3-notice">
-            <b>Review only — physical scale unverified</b>
-            <p>
-              Model-predicted physical severity is unavailable. Measurements are
-              provided in RAW and pixel units.
+        <section className="c3-panel">
+          <p className="c3-eyebrow">03 / VISUAL DAMAGE ANALYSIS</p>
+          <h2>Understand the Damage</h2>
+          {defect && result ? (
+            <>
+              <h3>{defect.presentation.label}</h3>
+              <GeometryViewer
+                key={defect.defect_id}
+                defect={defect}
+                image={sourceImage}
+                width={sourceWidth}
+                height={sourceHeight}
+              />
+            </>
+          ) : (
+            <p className="c3-muted">
+              Explore the selected damage after analysis.
             </p>
-          </div>
-          {defect && (
-            <details className="c3-research">
-              <summary>Reliability & provenance</summary>
-              <p>{defect.reliability_status.replaceAll("_", " ")}</p>
-              <ul>
-                {[...defect.reasons, ...defect.reliability.input_qa_flags].map(
-                  (reason) => (
-                    <li key={reason}>
-                      {reason.replaceAll("_", " ").toLowerCase()}
-                    </li>
-                  ),
-                )}
-              </ul>
-              <p>Model bundle: {result?.bundle_version}</p>
-            </details>
           )}
+        </section>
+        {defect?.damage_type === "pothole" && <ResearchEvidence key={defect.defect_id} />}
+        <section className="c3-panel">
+          <p className="c3-eyebrow">04 / DAMAGE ASSESSMENT RESULTS</p>
+          <h2>Your Road Damage Results</h2>
+          <AssessmentSummary result={result} mode="findings" imageFor={(item) =>
+            item.source_group === "crack" ? crackImageUrl || (item.source_kind === "photo" ? imageUrl : crackUrl) : imageUrl
+          } />
+        </section>
+        <section className="c3-panel">
+          <p className="c3-eyebrow">05 / REVIEW AND NEXT STEPS</p>
+          <h2>What Should You Do Next?</h2>
+          <AssessmentSummary result={result} mode="guidance" />
+        </section>
+        <section className="c3-panel">
+          <p className="c3-eyebrow">06 / DOWNLOAD REPORT</p>
+          <h2>Your Road Damage Report</h2>
+          <p className="c3-muted">
+            {result?.summary ||
+              "Your report will include separate findings, visual analysis and inspection guidance for every damaged area."}
+          </p>
+          <button
+            disabled={!result || busy || exporting}
+            onClick={exportReport}
+          >
+            {exporting ? "Preparing PDF..." : "Download PDF Report"}
+          </button>
         </section>
         <footer className="c3-footer">
-          <Link href="/">← Back to RoadLens</Link>
+          <Link href="/">Back to RoadLens</Link>
           <p>Road damage. Surface detail. A more informed assessment.</p>
           <span>COMPONENT 03</span>
         </footer>

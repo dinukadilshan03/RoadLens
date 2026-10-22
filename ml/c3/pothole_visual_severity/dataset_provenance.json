@@ -1,0 +1,7 @@
+{
+  "url": "https://github.com/Fatelol/YOLO_Pothole_Detection.git",
+  "commit": "71acf6aec8b94f54918966bd3f682a1335a3263d",
+  "declared_label_meaning": "author-assigned pothole visual/risk levels; NOT measured FHWA physical depth",
+  "training_stage": "experimental visual classifier",
+  "external_data_license": "CHECK source and original dataset terms before redistribution"
+}

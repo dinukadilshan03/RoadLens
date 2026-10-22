@@ -1,0 +1,35 @@
+{
+  "model_version": "C3-22.0.0-experimental",
+  "architecture": "mobilenet_v3_small",
+  "input": "RGB uint8 HxWx3 + half-open bbox_xyxy",
+  "image_size": 224,
+  "padding_fraction": 0.12,
+  "normalize_mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "normalize_std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "class_names": [
+    "LOW",
+    "MODERATE",
+    "HIGH"
+  ],
+  "review_threshold_provisional": 0.6,
+  "label_mapping": {
+    "minor_pothole": 0,
+    "medium_pothole": 1,
+    "major_pothole": 2
+  },
+  "source_dataset_commit": "71acf6aec8b94f54918966bd3f682a1335a3263d",
+  "meaning": "EXPERIMENTAL VISUAL / PERCEIVED RISK ONLY; not FHWA maximum-depth physical severity",
+  "restrictions": [
+    "No length, width, area, depth or mm inference",
+    "Not for automated road-maintenance decisions without external validation",
+    "Source and deployment camera domain mismatch can reduce performance"
+  ]
+}

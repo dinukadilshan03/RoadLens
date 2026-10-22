@@ -1,0 +1,26 @@
+{
+  "correction_version": "C3-28-gate-erratum-v1",
+  "source_run": "C3-28_reference_shape_confidence_20261022T100842Z",
+  "frozen_dev_n": 72,
+  "intra_training_val_n": 17,
+  "frozen_dev_mae_raw": {
+    "trained_ref_mae_raw": 43.2821299235026,
+    "flat_mae_raw": 59.21562190188302,
+    "train_mean_mae_raw": 42.75877335336473
+  },
+  "intra_training_val_mae_raw": {
+    "trained_ref_mae_raw": 22.70581323960248,
+    "flat_mae_raw": 52.65052111008588,
+    "train_mean_mae_raw": 25.266751149121454
+  },
+  "intra_training_validation_baselines_passed": true,
+  "frozen_development_baselines_passed": false,
+  "independent_scene_validated": false,
+  "metric_depth_calibrated": false,
+  "learned_reference_deployment_authorized": false,
+  "normal_user_reference": "Existing CRDL zero-level relative reference remains active",
+  "research_comparison": "Learned C3-28 reference remains visible only in Research Evidence mode",
+  "original_checkpoint_modified": false,
+  "backup_folder": "/content/drive/MyDrive/crdl_experiments/component3_fresh_v1/05_training_runs/C3-28_reference_shape_confidence_20261022T100842Z/model_selection_correction_backups/20261022T103206Z",
+  "note": "Historical C3-28 PDF is preserved; use the corrected PDF for current reporting."
+}

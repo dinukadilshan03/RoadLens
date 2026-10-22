@@ -1,0 +1,45 @@
+{
+  "contract": "C3_SUT_CRACK_ANNOTATED_LENGTH_DEV_V1",
+  "candidate_feature_lists": {
+    "length_linear": [
+      "visible_length_px"
+    ],
+    "morph_ridge": [
+      "visible_length_px",
+      "width_p95_px",
+      "width_irregularity_ratio",
+      "mask_fraction",
+      "fragmented_skeleton",
+      "touches_image_border"
+    ],
+    "tmer_ridge": [
+      "visible_length_px",
+      "width_p95_px",
+      "width_irregularity_ratio",
+      "mask_fraction",
+      "fragmented_skeleton",
+      "touches_image_border",
+      "stable_junction_evidence",
+      "stable_anchored_branch_evidence",
+      "junction_scale_range",
+      "junction_tolerance_sensitive"
+    ],
+    "tmer_random_forest": [
+      "visible_length_px",
+      "width_p95_px",
+      "width_irregularity_ratio",
+      "mask_fraction",
+      "fragmented_skeleton",
+      "touches_image_border",
+      "stable_junction_evidence",
+      "stable_anchored_branch_evidence",
+      "junction_scale_range",
+      "junction_tolerance_sensitive"
+    ]
+  },
+  "fixed_fold_rule": "5 deterministic contiguous ID blocks: 1-26, 27-52, 53-78, 79-104, 105-130",
+  "normalization": "StandardScaler fitted separately on each training fold for Ridge; no global feature normalization",
+  "severity_enabled": false,
+  "physical_scale_certified": false,
+  "ground_truth_type": "SUT-Crack centimetre length labels; capture and measurement protocol not verified"
+}

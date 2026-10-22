@@ -1,6 +1,7 @@
 # Git & local environment
 .git
 .venv
+**/.venv
 .env
 .env.*
 !.env.example
@@ -8,6 +9,7 @@
 
 # Python caches & test artifacts
 __pycache__
+**/__pycache__
 *.py[cod]
 *$py.class
 .pytest_cache
@@ -33,6 +35,7 @@ frontend
 **/fixtures/**
 **/.ipynb_checkpoints
 *.pt
+*.joblib
 *.pth
 *.onnx
 *.engine
@@ -62,3 +65,5 @@ docs
 
 # The selected C3 runtime bundle is required for inference.
 !ml/c3/selected_model.pt
+!ml/c3/pothole_visual_severity/visual_severity_model.pt
+!ml/c3/crack_visual_severity/crack_visual_low_high_model.pt
