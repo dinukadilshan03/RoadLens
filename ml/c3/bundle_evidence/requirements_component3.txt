@@ -1,0 +1,9 @@
+# Install a Torch/Torchvision pair compatible with your Python platform.
+numpy
+torch
+torchvision
+Pillow
+scipy
+scikit-image
+scikit-learn
+joblib

@@ -1,0 +1,106 @@
+{
+  "total_passed": 25,
+  "tests": [
+    {
+      "test": "exact threshold 10",
+      "status": "PASS"
+    },
+    {
+      "test": "exact threshold 24.999",
+      "status": "PASS"
+    },
+    {
+      "test": "exact threshold 25",
+      "status": "PASS"
+    },
+    {
+      "test": "exact threshold 50",
+      "status": "PASS"
+    },
+    {
+      "test": "exact threshold 50.001",
+      "status": "PASS"
+    },
+    {
+      "test": "exact threshold 70",
+      "status": "PASS"
+    },
+    {
+      "test": "uncertainty crosses 25",
+      "status": "PASS"
+    },
+    {
+      "test": "uncertainty crosses 50",
+      "status": "PASS"
+    },
+    {
+      "test": "stable uncertainty",
+      "status": "PASS"
+    },
+    {
+      "test": "missing uncertainty",
+      "status": "PASS"
+    },
+    {
+      "test": "nine point agreement",
+      "status": "PASS"
+    },
+    {
+      "test": "nine point contradiction",
+      "status": "PASS"
+    },
+    {
+      "test": "no field data",
+      "status": "PASS"
+    },
+    {
+      "test": "no model RAW to mm conversion",
+      "status": "PASS"
+    },
+    {
+      "test": "pavement applicability",
+      "status": "PASS"
+    },
+    {
+      "test": "minimum plan definition",
+      "status": "PASS"
+    },
+    {
+      "test": "healthy-road reference",
+      "status": "PASS"
+    },
+    {
+      "test": "invalid depth -1",
+      "status": "PASS"
+    },
+    {
+      "test": "invalid depth nan",
+      "status": "PASS"
+    },
+    {
+      "test": "invalid depth 0",
+      "status": "PASS"
+    },
+    {
+      "test": "model severity remains null",
+      "status": "PASS"
+    },
+    {
+      "test": "field severity missing by default",
+      "status": "PASS"
+    },
+    {
+      "test": "field reference separately classified",
+      "status": "PASS"
+    },
+    {
+      "test": "model physical outputs still null",
+      "status": "PASS"
+    },
+    {
+      "test": "trained geometry inference still working",
+      "status": "PASS"
+    }
+  ],
+  "all_tests_synthetic": true
+}

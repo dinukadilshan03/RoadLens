@@ -1,7 +1,13 @@
 /* eslint-disable @next/next/no-img-element -- User-provided images are displayed without remote optimization. */
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import type { Defect } from "../api";
+
+const RelativeSurfaceViewer = dynamic(() => import("./RelativeSurfaceViewer"), {
+  ssr: false,
+  loading: () => <p className="c3-muted">Loading interactive surface…</p>,
+});
 
 export default function GeometryViewer({
   defect,
@@ -14,48 +20,127 @@ export default function GeometryViewer({
   width: number;
   height: number;
 }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
+  const [branchId, setBranchId] = useState(0);
+  const branch = defect.crack_network?.branches.find((item) => item.branch_id === branchId);
   const [opacity, setOpacity] = useState(65);
-  const [row, setRow] = useState(96);
-  const map = defect.raw_axial_depression_map;
-  const max = defect.geometry_raw?.max_raw || 1;
-  useEffect(() => {
-    const context = canvas.current?.getContext("2d");
-    if (!context || !map?.length) return;
-    const pixels = context.createImageData(256, 192);
-    map.forEach((line, y) =>
-      line.forEach((value, x) => {
-        const t = Math.min(1, value / max),
-          i = (y * 256 + x) * 4;
-        pixels.data[i] = Math.round(70 + 185 * t);
-        pixels.data[i + 1] = Math.round(160 - 105 * t);
-        pixels.data[i + 2] = Math.round(150 - 110 * t);
-        pixels.data[i + 3] = value > 0 ? 255 : 0;
-      }),
+  const [row, setRow] = useState(() =>
+    Math.min(
+      191,
+      Math.floor(
+        ((defect.source_bbox_xyxy[1] + defect.source_bbox_xyxy[3]) /
+          2 /
+          height) *
+          192,
+      ),
+    ),
+  );
+  const map = defect.display_chart?.profiles;
+  if (defect.damage_type === "crack")
+    return (
+      <>
+        <p className="c3-muted">
+          This view shows the location and shape of the identified crack.
+        </p>
+        {defect.crack_network && <>
+          <label>Inspect a branch <select value={branchId} onChange={(event) => setBranchId(Number(event.target.value))}>
+            <option value={0}>Entire network</option>
+            {defect.crack_network.branches.map((item) => <option key={item.branch_id} value={item.branch_id}>Branch {item.branch_id}</option>)}
+          </select></label>
+          {branch && <div className="c3-image" style={{ aspectRatio: `${width}/${height}` }}>
+            <img src={image} alt="Crack network" />
+            <img src={branch.overlay} alt={`Highlighted branch ${branch.branch_id}`} style={{
+              left: `${branch.bbox_xyxy[0] / width * 100}%`, top: `${branch.bbox_xyxy[1] / height * 100}%`,
+              width: `${(branch.bbox_xyxy[2] - branch.bbox_xyxy[0]) / width * 100}%`,
+              height: `${(branch.bbox_xyxy[3] - branch.bbox_xyxy[1]) / height * 100}%`,
+            }} />
+          </div>}
+        </>}
+        <div className="c3-visual-grid">
+          {[
+            { title: defect.source_kind === "mask" ? "Uploaded crack mask" : "Original crack road image", layer: undefined },
+            { title: "Highlighted crack area", layer: defect.visuals.outline },
+            { title: "Extracted crack outline", layer: defect.visuals.outline },
+            { title: "Crack centerline", layer: defect.visuals.centerline },
+            { title: "Visible width variation", layer: defect.visuals.width },
+          ].map((view, i) => (
+            <figure key={view.title}>
+              <div
+                className="c3-image"
+                style={{ aspectRatio: `${width}/${height}` }}
+              >
+                {i < 2 && (
+                  <img
+                    src={image}
+                    alt={
+                      i === 0
+                        ? (defect.source_kind === "mask" ? "Uploaded crack mask" : "Original crack road image")
+                        : "Road with highlighted crack"
+                    }
+                  />
+                )}
+                {view.layer && <img src={view.layer} alt={view.title} />}
+              </div>
+              <figcaption>
+                <b>{view.title}</b>
+                {view.title === "Visible width variation" && <div className="c3-width-key">
+                  <div className="c3-width-scale" aria-hidden="true" />
+                  <div className="c3-width-labels"><strong>Blue / cool: narrower</strong><strong>Orange?red / warm: wider</strong></div>
+                  <p>Colors show visible crack width, not damage severity.</p>
+                </div>}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+
+      </>
     );
-    context.putImageData(pixels, 0, 0);
-  }, [map, max]);
-  if (!map?.length) return <p>No prediction map available for this defect.</p>;
+  if (!map?.length)
+    return <p>No depression map is available for this marked area.</p>;
   const values = map[row] || map[0];
   const points = values
-    .map((v, x) => `${(x * 600) / 255},${145 - (v / max) * 130}`)
+    .map((v, x) => `${(x * 600) / 255},${15 + v * 130}`)
     .join(" ");
-  const bins = Array(16).fill(0) as number[];
-  map
-    .flat()
-    .filter((v) => v > 0)
-    .forEach((v) => bins[Math.min(15, Math.floor((v / max) * 16))]++);
+  const bins = defect.display_chart?.distribution || [];
   const peak = Math.max(1, ...bins);
   return (
     <>
       <div className="c3-visual-grid">
         <figure>
-          <div className="c3-image" style={{ aspectRatio: `${width}/${height}` }}>
+          <div
+            className="c3-image"
+            style={{ aspectRatio: `${width}/${height}` }}
+          >
+            <img src={image} alt="Road photograph" />
+            <img src={defect.visuals.outline} alt="Highlighted pothole area" />
+          </div>
+          <figcaption>
+            <b>Highlighted pothole area</b>
+          </figcaption>
+        </figure>
+        <figure>
+          <div
+            className="c3-image"
+            style={{ aspectRatio: `${width}/${height}` }}
+          >
+            <img
+              src={defect.visuals.depression}
+              alt="Predicted depression color map"
+            />
+          </div>
+          <figcaption>
+            <b>Predicted depression color map</b>
+          </figcaption>
+        </figure>
+        <figure>
+          <div
+            className="c3-image"
+            style={{ aspectRatio: `${width}/${height}` }}
+          >
             <img src={image} alt="Original uploaded road" />
           </div>
           <figcaption>
             <span>01 / Source image</span>
-            <b>Original pothole</b>
+            <b>Original road image</b>
           </figcaption>
         </figure>
         <figure>
@@ -90,18 +175,16 @@ export default function GeometryViewer({
             }}
           >
             <img src={image} alt="Road aligned with predicted depression" />
-            <canvas
-              ref={canvas}
-              width={256}
-              height={192}
+            <img
+              src={defect.visuals.depression}
               style={{ opacity: opacity / 100 }}
-              aria-label="Model-produced RAW depression heatmap"
+              alt="Estimated road depression pattern"
             />
             <span
               className="c3-scanline"
               style={{ top: `${(row / 192) * 100}%` }}
             />
-            <span className="c3-map-badge">CRDL · RAW</span>
+            <span className="c3-map-badge">Estimated shape</span>
           </div>
           <figcaption>
             <span>02 / Trained prediction</span>
@@ -127,16 +210,17 @@ export default function GeometryViewer({
       </div>
       <div className="c3-profile">
         <div>
-          <h3>Interactive depression profile</h3>
+          <h3>Road Depression Profile</h3>
           <p>
-            Click or drag vertically on the map to inspect a horizontal
-            cross-section.
+            Explore how the estimated road surface changes across the selected
+            pothole. Click or drag vertically on the image to move the profile
+            line.
           </p>
         </div>
         <label>
-          Profile row · {row}
+          Profile position: {Math.round((row / 191) * 100)}%
           <input
-            aria-label="Profile row"
+            aria-label="Profile position"
             type="range"
             min="0"
             max="191"
@@ -147,14 +231,15 @@ export default function GeometryViewer({
         <svg
           viewBox="0 0 620 180"
           role="img"
-          aria-label={`Predicted RAW depression profile at native map row ${row}`}
+          aria-label="Healthy reference level and estimated damaged road profile at the selected image position"
         >
           <path
             d="M0 15H600 M0 80H600 M0 145H600"
             stroke="#ced6c5"
             fill="none"
           />
-          <polygon points={`0,145 ${points} 600,145`} fill="#75927830" />
+          <line x1="0" y1="15" x2="600" y2="15" stroke="#7c8486" strokeWidth="2" strokeDasharray="8 5" />
+          <polygon points={`0,15 ${points} 600,15`} fill="#75927830" />
           <polyline
             points={points}
             fill="none"
@@ -165,45 +250,43 @@ export default function GeometryViewer({
             0
           </text>
           <text x="510" y="172">
-            256 native pixels
+            Position across image
           </text>
           <text x="5" y="12">
-            {max.toFixed(2)} RAW
+            Relative depression
           </text>
         </svg>
-      </div>
-      <details className="c3-research">
-        <summary>Research view · distribution & model evidence</summary>
-        <p>
-          Native 192 × 256 optical-axis residual. The visualization stretches to
-          the full image; measurements use the native prediction.
-        </p>
-        <div
-          className="c3-histogram"
-          role="img"
-          aria-label="Distribution of positive predicted RAW depression values"
-        >
-          {bins.map((v, i) => (
-            <div
-              key={i}
-              style={{ height: `${Math.max(1, (v / peak) * 100)}%` }}
-              title={`${((max * i) / 16).toFixed(2)}–${((max * (i + 1)) / 16).toFixed(2)} RAW: ${v} map pixels`}
-            />
-          ))}
+        <div className="c3-profile-legend" aria-label="Road profile legend">
+          <span><i className="c3-reference-line" />Healthy reference level</span>
+          <span><i className="c3-damaged-line" />Estimated damaged profile</span>
         </div>
-        <p>
-          Distribution: 0 to {max.toFixed(2)} RAW. Zero-valued background
-          excluded.
+      </div>
+      <h3>Distribution of estimated depression</h3>
+      <div
+        className="c3-histogram"
+        role="img"
+        aria-label="Distribution of estimated relative depression, shallower to deeper"
+      >
+        {bins.map((v, i) => (
+          <div
+            key={i}
+            style={{ height: `${Math.max(1, (v / peak) * 100)}%` }}
+          />
+        ))}
+      </div>
+      <p className="c3-muted">
+        Shallower to deeper estimated regions. Colors illustrate the estimated
+        shape of the road depression. Warmer colors indicate areas predicted to
+        be deeper relative to the surrounding road.
+      </p>
+      {defect.relative_surface ? (
+        <RelativeSurfaceViewer surface={defect.relative_surface} />
+      ) : (
+        <p className="c3-muted">
+          A 3D surface is not available for this marked area at the model’s
+          image resolution.
         </p>
-        <p>{defect.measurement_notes}</p>
-        {defect.pixel_measurements.crack && (
-          <pre>{JSON.stringify(defect.pixel_measurements.crack, null, 2)}</pre>
-        )}
-        <p>
-          RGB-D reference reconstruction is unavailable for ordinary RGB
-          uploads.
-        </p>
-      </details>
+      )}
     </>
   );
 }

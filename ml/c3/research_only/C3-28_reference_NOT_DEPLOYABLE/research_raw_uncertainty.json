@@ -1,0 +1,11 @@
+{
+  "label": "EXPLORATORY_DEVELOPMENT_ONLY",
+  "quantity": "D95_ABSOLUTE_RAW_ERROR",
+  "q90_raw": 29.97758483886721,
+  "calibration_n": 46,
+  "audit_n": 26,
+  "audit_coverage": 0.9230769230769231,
+  "nominal_target": 0.9,
+  "physical_mm_covered": false,
+  "notes": "CRDL model was selected using related development evidence; temporal/site exchangeability unverified. Not a deployable 90% accuracy claim."
+}

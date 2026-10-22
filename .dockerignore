@@ -48,6 +48,7 @@ ml/c2/data/*
 **/notebooks/**
 **/.ipynb_checkpoints
 *.pt
+*.joblib
 *.pth
 *.onnx
 *.engine
@@ -88,3 +89,5 @@ tests
 
 # The selected C3 runtime bundle is required for inference.
 !ml/c3/selected_model.pt
+!ml/c3/pothole_visual_severity/visual_severity_model.pt
+!ml/c3/crack_visual_severity/crack_visual_low_high_model.pt
