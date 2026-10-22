@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -38,6 +39,9 @@ C2_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CGAN_WEIGHTS = C2_DIR / "weights" / "cgan_frozen_sensor.pth"
 DEFAULT_SEGMENTER_WEIGHTS = C2_DIR / "weights" / "c2_ltca_segmenter_best.pth"
 DEFAULT_POTHOLE_WEIGHTS = C2_DIR / "weights" / "c2_pothole_ltca_best.pth"
+
+_MODEL_LOCK = threading.Lock()
+_MODEL_CACHE: dict[tuple[str, str], tuple[Any, Any]] = {}
 
 
 class C2InputError(ValueError):
@@ -85,10 +89,12 @@ def compute_sha256(path: Path) -> str:
 
 
 def _morphological_thinning(mask_255: np.ndarray) -> np.ndarray:
-    """Exact 1-pixel skeleton centerline using Zhang-Suen or erosion peeling."""
+    """Exact 1-pixel skeleton centerline using Zhang-Suen / skimage skeletonize or erosion peeling."""
     try:
-        skel = cv2.ximgproc.thinning(mask_255, thinningType=cv2.ximgproc.THINNING_ZHANGSUEN)
-        return (skel > 0).astype(np.uint8) * 255
+        from skimage.morphology import skeletonize
+
+        skel = skeletonize(mask_255 > 0)
+        return skel.astype(np.uint8) * 255
     except Exception:
         kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
         skeleton = np.zeros_like(mask_255)
@@ -102,6 +108,29 @@ def _morphological_thinning(mask_255: np.ndarray) -> np.ndarray:
             if cv2.countNonZero(temp) == 0:
                 break
         return skeleton
+
+
+def _get_cached_segmenter(cgan_weights: Path, seg_weights: Path):
+    import torch
+    from ml.c2.models.segmenter import DualStreamLTCASegmenter
+
+    key = (str(cgan_weights.resolve()), str(seg_weights.resolve()))
+    with _MODEL_LOCK:
+        if key not in _MODEL_CACHE:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            segmenter = DualStreamLTCASegmenter(
+                cgan_weights_path=cgan_weights,
+                feature_dim=96,
+                pretrained_backbone=False,
+            ).to(device)
+            ckpt = torch.load(seg_weights, map_location=device, weights_only=False)
+            if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+                segmenter.load_state_dict(ckpt["model_state_dict"])
+            elif isinstance(ckpt, dict):
+                segmenter.load_state_dict(ckpt)
+            segmenter.eval()
+            _MODEL_CACHE[key] = (segmenter, device)
+        return _MODEL_CACHE[key]
 
 
 def _emulate_software_thermal_physics(rgb_256: np.ndarray, damage_class: str) -> np.ndarray:
@@ -220,22 +249,14 @@ def run(request: C2Request, context: Any) -> C2Result:
     pseudo_thm_uint8 = None
 
     try:
-        import torch
-        from ml.c2.models.segmenter import DualStreamLTCASegmenter
-
         if seg_weights.exists() and cgan_weights.exists():
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            segmenter = DualStreamLTCASegmenter(cgan_weights_path=cgan_weights, feature_dim=96).to(device)
-            ckpt = torch.load(seg_weights, map_location=device, weights_only=False)
-            if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
-                segmenter.load_state_dict(ckpt["model_state_dict"])
-            elif isinstance(ckpt, dict):
-                segmenter.load_state_dict(ckpt)
-            segmenter.eval()
+            import torch
+
+            segmenter, device = _get_cached_segmenter(cgan_weights, seg_weights)
 
             # Normalization to [-1, 1]
             t_input = torch.from_numpy(rgb_256).permute(2, 0, 1).float().div_(127.5).sub_(1.0).unsqueeze(0).to(device)
-            with torch.no_grad():
+            with torch.inference_mode():
                 prob_t, alpha_t, thm_t = segmenter(t_input)
                 if prob_t.shape[-2:] != (256, 256):
                     import torch.nn.functional as F

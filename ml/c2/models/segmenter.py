@@ -63,6 +63,7 @@ class DualStreamLTCASegmenter(nn.Module):
         cgan_weights_path: str | Path | None = None,
         freeze_cgan: bool = True,
         feature_dim: int = 96,
+        pretrained_backbone: bool = True,
     ):
         super().__init__()
 
@@ -84,10 +85,12 @@ class DualStreamLTCASegmenter(nn.Module):
             self.cgan_sensor.eval()
 
         # 2. Stage 2: Dual MobileNetV3 Backbones
+        # Only download ImageNet weights during training; inference loads full checkpoint weights directly.
+        backbone_weights = models.MobileNet_V3_Small_Weights.DEFAULT if pretrained_backbone else None
         # Visual RGB backbone (pretrained on ImageNet)
-        mobilenet_rgb = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
+        mobilenet_rgb = models.mobilenet_v3_small(weights=backbone_weights)
         # Thermal backbone (accepts 1 channel replicated or adapted)
-        mobilenet_thm = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
+        mobilenet_thm = models.mobilenet_v3_small(weights=backbone_weights)
 
         # Stage 1: Shallow spatial features (1/4 scale, 24 channels)
         self.rgb_low = nn.Sequential(*mobilenet_rgb.features[:4])

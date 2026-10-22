@@ -3,6 +3,9 @@
 !/data/.gitkeep
 !/data/__init__.py
 !/data/irt_dataset.py
+!/data/segmentation_dataset.py
+!/data/samples/
+!/data/samples/*
 
 # Model weights & checkpoints
 /weights/*
