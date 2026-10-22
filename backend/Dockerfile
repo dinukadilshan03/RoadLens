@@ -1,17 +1,19 @@
 FROM python:3.11-slim
 
-# Prevent Python from writing .pyc files and enable unbuffered output for container logs
+# Prevent Python from writing .pyc files at runtime, pre-compile bytecode during uv sync,
+# and use copy link mode so BuildKit cache mounts work across filesystems.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
     PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
-# Install system dependencies required by OpenCV (video/image processing)
+# Install minimal system dependencies required by headless OpenCV and OpenMP (xgboost-cpu / torch)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 \
     libglib2.0-0 \
-    libxcb1 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv using the official standalone binary
@@ -22,12 +24,12 @@ RUN useradd -m -u 1000 appuser && \
     mkdir -p /app && \
     chown appuser:appuser /app
 
-# Copy dependency specifications together to maximize caching
+# Copy unified dependency specifications to maximize Docker layer caching
 COPY pyproject.toml uv.lock ./
-COPY ml/c4/requirements.lock ./ml/c4/requirements.lock
 
-# Install dependencies into /app/.venv with persistent BuildKit cache and no redundant layers
+# Install runtime-only dependencies into /app/.venv in a single deterministic pass
 RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
     uv sync --frozen --no-dev && \
     uv pip install --python /app/.venv/bin/python -r ml/c4/requirements.lock scikit-image torchvision
 

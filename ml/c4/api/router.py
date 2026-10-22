@@ -109,7 +109,7 @@ def build_router(storage_dir=None, model_dir=None, allow_demo=None, demo_dir=Non
     model_dir = model_dir or os.environ.get('C4_MODEL_DIR') or C4_DIR / 'models' / 'production'
     if allow_demo is None:
         allow_demo = os.environ.get('C4_ALLOW_DEMO', '1') != '0'
-    demo_dir = demo_dir or C4_DIR / 'models' / 'demo'
+    demo_dir = demo_dir or os.environ.get('C4_DEMO_DIR') or C4_DIR / 'models' / 'demo'
     store = store or RunStore(storage_dir)
     models = _ModelResolver(model_dir, allow_demo, demo_dir)
     one_at_a_time = threading.Semaphore(1)          # inference is CPU-bound; queue runs in order
