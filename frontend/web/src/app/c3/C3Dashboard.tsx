@@ -74,6 +74,7 @@ export default function C3Dashboard() {
         <nav aria-label="Main navigation">
           <Link href="/">Home</Link>
           <Link href="/c1">C1 · Detect</Link>
+          <Link href="/c2">C2 · Segment</Link>
           <Link href="/c3" aria-current="page">
             C3 · Measure
           </Link>
