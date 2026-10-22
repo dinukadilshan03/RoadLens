@@ -1,0 +1,11 @@
+{
+  "visual_severity": "LOW",
+  "suggested_class": "LOW",
+  "review_required": false,
+  "model_score_uncalibrated": 0.7004877328872681,
+  "severity_kind": "EXPERIMENTAL_IMAGE_VISUAL_SEVERITY",
+  "physical_severity": null,
+  "physical_dimensions": null,
+  "units": "NONE",
+  "model_version": "C3-22.0.0-experimental"
+}

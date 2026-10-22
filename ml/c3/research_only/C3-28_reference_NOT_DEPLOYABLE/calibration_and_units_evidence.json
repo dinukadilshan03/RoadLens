@@ -1,0 +1,7 @@
+{
+  "raw_depth_scale_certified": false,
+  "road_frame_normal_verified": false,
+  "physical_spot_check_verified": false,
+  "qualified_metric_geometry": false,
+  "confidence_caveat": "Raw tolerance is only an exploratory development-set statistic"
+}

@@ -29,7 +29,11 @@ COPY pyproject.toml uv.lock ./
 
 # Install runtime-only dependencies into /app/.venv in a single deterministic pass
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-project && \
+    uv sync --frozen --no-dev && \
+    uv pip install --python /app/.venv/bin/python \
+        -r ml/c4/requirements.lock \
+        scikit-image torchvision
 
 # Ensure data mount points exist and are owned by appuser
 RUN mkdir -p /data/c1 /data/c2 /data/c4 && chown -R appuser:appuser /data

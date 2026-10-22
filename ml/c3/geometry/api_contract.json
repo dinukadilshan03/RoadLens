@@ -1,0 +1,23 @@
+{
+  "version": "crdl-c3/0.9-release-candidate",
+  "call": "Component3Bridge(bundle_directory, device).predict(rgb_uint8, detections, include_maps=False)",
+  "bbox": "pixel xyxy half-open integers",
+  "mask_space": [
+    "frame: HxW",
+    "bbox: (y1-y0)x(x1-x0)"
+  ],
+  "detector_fields": [
+    "defect_id",
+    "bbox_xyxy",
+    "mask_space",
+    "mask",
+    "score / detection_confidence (optional)",
+    "segmentation_score / segmentation_confidence (optional)",
+    "crack_mask (optional full-frame)",
+    "crack_confidence_map (optional full-frame)"
+  ],
+  "probability_maps": "Explicitly threshold in C2; no implicit conversion",
+  "output": "Per-defect geometry_raw, pixel_measurements, QA/reliability, null physical measurements and severity",
+  "units": "UNVERIFIED_RAW_AXIAL and pixel",
+  "actual_C1C2_handoff": "NOT YET VERIFIED"
+}

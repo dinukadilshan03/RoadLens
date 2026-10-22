@@ -1,0 +1,31 @@
+{
+  "stage": "C3-20_SEVERITY_REFERENCE_POLICY",
+  "standard_id": "FHWA-HRT-13-092_ACP_8_POTHOLES_2014",
+  "standard_url": "https://www.fhwa.dot.gov/publications/research/infrastructure/pavements/ltpp/13092/001.cfm",
+  "rules": {
+    "LOW": "0 < depth_mm < 25",
+    "MODERATE": "25 <= depth_mm <= 50",
+    "HIGH": "depth_mm > 50"
+  },
+  "condition": "Asphalt concrete, FHWA minimum size confirmed, healthy-road reference and field measurement documented",
+  "classification_basis": "Measured maximum depth at separately identified deepest point; never the nine-point average",
+  "depth_uncertainty": "Robust reference label only when declared uncertainty does not cross a severity threshold",
+  "field_data_loaded": false,
+  "field_measurement_template_rows": 7,
+  "model_physical_severity_enabled": false,
+  "model_raw_to_mm_enabled": false,
+  "validated_sri_lanka_specific_standard": false,
+  "independent_field_model_accuracy_verified": false,
+  "source_C319": "/content/drive/MyDrive/crdl_experiments/component3_fresh_v1/08_integration/C3-19_release_candidate_20261021T091823Z_651136",
+  "source_hashes": {
+    "selected_model.pt": "2961e3bfcfbf9b4ea620152728863645e9ceac73a7589fdd7793bd3c428215cc",
+    "model_and_inference.py": "b694d3e0d3a8eb27a96829d404ff9ba33e43c7d14203d2c4e092864f5ae83dda",
+    "component3_service.py": "6a6c8939112c5c97d7bf7a2b3ee165eea308e3190aad4447f5dfebe4d15086b5",
+    "geometry_measurements.py": "8b70a95e40d9d4e529ec024b60add677f4a63666d8d86ab1df590ad9d9cf7bf9",
+    "component3_measurement_service.py": "d149094719e8384f0c825aea32f9b5fd7b828c895e96a36b640a24780bbd2270",
+    "component3_handoff_service.py": "c652d96866f3fca3c3adb93730cf4202f1268293c5106cab9497fd1e7b56aa46",
+    "component3_bridge.py": "f4297b24296de24b97ad20385ecfb83f2ac8e5c84adc5ed57ddddf0c8bff9ee0",
+    "bundle_config.json": "2f648b2b66a09acca8e03b195267e9e33d3f12c6ccb335d0c597e9f224efd51c",
+    "api_contract.json": "1ad90dffddc1822fad7c008f38a565623de84b3993cf1b48e6beef4045f13d9c"
+  }
+}

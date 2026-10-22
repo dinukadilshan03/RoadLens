@@ -1,0 +1,8 @@
+pothole_id,source,road_surface_type,fhwa_150mm_inscribed_circle_confirmed,healthy_road_reference_verified,measurement_method,deepest_point_mm,depth_uncertainty_mm,point_01_mm,point_02_mm,point_03_mm,point_04_mm,point_05_mm,point_06_mm,point_07_mm,point_08_mm,point_09_mm,measured_length_mm,measured_width_mm,top_photo_path,angle_photo_path,measurement_date,notes
+SL_P01,,,,,,,,,,,,,,,,,,,,,,
+SL_P02,,,,,,,,,,,,,,,,,,,,,,
+SL_P03,,,,,,,,,,,,,,,,,,,,,,
+SL_P04,,,,,,,,,,,,,,,,,,,,,,
+SL_P05,,,,,,,,,,,,,,,,,,,,,,
+SL_P06,,,,,,,,,,,,,,,,,,,,,,
+SL_P07,,,,,,,,,,,,,,,,,,,,,,

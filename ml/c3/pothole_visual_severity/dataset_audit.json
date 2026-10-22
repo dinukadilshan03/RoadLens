@@ -1,0 +1,291 @@
+{
+  "source_commit": "71acf6aec8b94f54918966bd3f682a1335a3263d",
+  "images_discovered": 1417,
+  "xml_files": 717,
+  "valid_objects": 1818,
+  "parsed_objects": 1887,
+  "class_counts": {
+    "LOW": 401,
+    "MODERATE": 824,
+    "HIGH": 593
+  },
+  "issues": [
+    [
+      "img-184.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-292.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-360.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-389.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-411.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-411.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-443.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-444.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-446.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-471.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-471.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-471.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-471.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-480.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-480.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-493.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-519.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-531.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-551.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-552.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-552.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-556.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-556.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-556.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-556.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-556.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-560.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-571.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-574.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-589.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-589.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-592.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-599.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-604.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-617.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-634.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-634.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-634.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-656.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-663.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-670.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-693.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-693.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-693.xml",
+      "invalid bbox "
+    ],
+    [
+      "img-693.xml",
+      "invalid bbox "
+    ]
+  ],
+  "label_semantics": "visual/risk; not FHWA measured physical severity"
+}

@@ -13,7 +13,7 @@ interface C1CropIngestionBarProps {
   onSelectC1Crop: (crop: C1CropItem) => void;
   onBatchSegmentC1Run?: (c1RunId: string) => void;
   onSelectPreset: (preset: BenchmarkPreset) => void;
-  onUploadFile: (file: File) => void;
+  onUploadFile: (file: File, damageClass?: string) => void;
   isLoading: boolean;
   defaultTab?: "c1_feed" | "presets" | "upload";
 }
@@ -33,6 +33,7 @@ export default function C1CropIngestionBar({
   const [activeTab, setActiveTab] = useState<"c1_feed" | "presets" | "upload">(
     defaultTab || "presets"
   );
+  const [uploadDamageClass, setUploadDamageClass] = useState<string>("auto");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export default function C1CropIngestionBar({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      onUploadFile(e.target.files[0]);
+      onUploadFile(e.target.files[0], uploadDamageClass);
     }
   };
 
@@ -279,26 +280,100 @@ export default function C1CropIngestionBar({
 
       {/* Tab 3: Custom Upload */}
       {activeTab === "upload" && (
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-700 hover:border-indigo-500/80 rounded-xl p-8 text-center cursor-pointer transition bg-slate-950/40 hover:bg-slate-900/50"
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          <svg className="w-10 h-10 mx-auto mb-2 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-          </svg>
-          <p className="text-sm font-semibold text-slate-200">
-            Drop road surface crop here or click to browse
-          </p>
-          <p className="text-xs text-slate-400 mt-1">
-            Supports PNG, JPG, WEBP. Cropped road distress image will be auto-normalized to 256×256 px.
-          </p>
+        <div className="space-y-3">
+          {/* Defect Class Selection Pills */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+            <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+              <span className="text-slate-400">Target Defect Architecture:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setUploadDamageClass("auto")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition ${
+                  uploadDamageClass === "auto"
+                    ? "bg-indigo-600 text-white font-semibold shadow-sm"
+                    : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
+                }`}
+              >
+                ⚡ Auto-Detect
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadDamageClass("Pothole_D40")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition flex items-center gap-1 ${
+                  uploadDamageClass === "Pothole_D40"
+                    ? "bg-amber-600 text-white font-semibold shadow-sm"
+                    : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
+                }`}
+              >
+                🕳️ Pothole (D40 Cavity)
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadDamageClass("Longitudinal_Crack_D00")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition flex items-center gap-1 ${
+                  uploadDamageClass === "Longitudinal_Crack_D00"
+                    ? "bg-emerald-600 text-white font-semibold shadow-sm"
+                    : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
+                }`}
+              >
+                📏 Longitudinal Crack (D00)
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadDamageClass("Alligator_Crack_D20")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition flex items-center gap-1 ${
+                  uploadDamageClass === "Alligator_Crack_D20"
+                    ? "bg-purple-600 text-white font-semibold shadow-sm"
+                    : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
+                }`}
+              >
+                🕸️ Alligator Fatigue (D20)
+              </button>
+            </div>
+          </div>
+
+          {/* Context Explainer Banner */}
+          <div className="text-[11px] text-slate-400 px-3 py-1.5 rounded bg-slate-950/40 border border-slate-850 flex items-center gap-2">
+            <span className="text-indigo-400 font-bold">Model Route:</span>
+            {uploadDamageClass === "Pothole_D40" ? (
+              <span className="text-amber-300">
+                Routes to trained <strong>c2_pothole_ltca_best.pth</strong> (2D deep cavity void filling & rim contour).
+              </span>
+            ) : uploadDamageClass === "auto" ? (
+              <span className="text-indigo-200">
+                Auto-evaluates crop morphology to deploy either Pothole cavity weights or Crack tubular model.
+              </span>
+            ) : (
+              <span className="text-emerald-300">
+                Routes to trained <strong>c2_ltca_segmenter_best.pth</strong> with sub-pixel tubular skeletonization.
+              </span>
+            )}
+          </div>
+
+          {/* Upload Drop Zone */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-slate-700 hover:border-indigo-500/80 rounded-xl p-8 text-center cursor-pointer transition bg-slate-950/40 hover:bg-slate-900/50"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <svg className="w-10 h-10 mx-auto mb-2 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p className="text-sm font-semibold text-slate-200">
+              Drop road surface crop here or click to browse
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              Supports PNG, JPG, WEBP. Cropped road distress image will be auto-normalized to 256×256 px.
+            </p>
+          </div>
         </div>
       )}
     </div>
