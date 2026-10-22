@@ -21,7 +21,7 @@ export default function SpectrumQuadView({
   const alphaWeight = run?.alpha_score ?? run?.results?.[0]?.alpha_weight ?? 0.5;
 
   // Derive environmental noise tag & OOD state
-  const damageClass = run?.damage_class || "Damage";
+  const damageClass = run?.results?.[0]?.damage_class || (run?.summary as any)?.damage_class || run?.damage_class || "Damage";
   const isOod = Boolean((metrics as any)?.is_ood || damageClass.toLowerCase().includes("grate") || (metrics?.area_pixels === 0 && run != null));
   const isCrack = damageClass.toLowerCase().includes("crack") && !isOod;
   const rawMIoU = metrics?.miou ?? 0.8183;
@@ -284,7 +284,7 @@ export default function SpectrumQuadView({
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              B: Skeleton
+              {isCrack ? "B: Skeleton" : "B: Rim / Skeleton"}
             </button>
             <button
               onClick={() => setActiveArtifactTab("confidence_map")}
@@ -345,7 +345,7 @@ export default function SpectrumQuadView({
               {isOod
                 ? "Area: 0 px² (Civil Anomaly Rejected · 0 False Alarms)"
                 : activeArtifactTab === "skeleton_1px"
-                ? `Length: ${metrics?.skeleton_length_px ?? 0} px`
+                ? (isCrack ? `Length: ${metrics?.skeleton_length_px ?? 0} px` : `Rim Perimeter: ${metrics?.skeleton_length_px ?? 0} px`)
                 : activeArtifactTab === "mask_2d"
                 ? `Area: ${metrics?.area_pixels ?? 0} px²`
                 : activeArtifactTab === "confidence_map"
