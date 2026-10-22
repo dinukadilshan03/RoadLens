@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import Link from "next/link";
 import {
   CLASS_BG_LIGHT,
   CLASS_BORDER,
@@ -128,8 +129,17 @@ export default function DefectList({
               {/* Expanded C2 Crop Preview when Selected */}
               {isSelected && rec.crop_url && (
                 <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                  <div className="text-[11px] font-bold text-slate-700">
-                    Downstream C2 Defect ROI Crop ({rec.crop_artifact}):
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-bold text-slate-700">
+                      Downstream C2 Defect ROI Crop ({rec.crop_artifact}):
+                    </div>
+                    <Link
+                      href={`/c2?c1_run_id=${encodeURIComponent(rec.external_run_id)}&c1_observation_id=${encodeURIComponent(rec.record_id)}&auto_run=1`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded bg-indigo-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-indigo-700 transition-colors shadow-2xs"
+                    >
+                      Segment in C2 →
+                    </Link>
                   </div>
                   <div className="mt-1.5 flex items-center gap-3">
                     <img

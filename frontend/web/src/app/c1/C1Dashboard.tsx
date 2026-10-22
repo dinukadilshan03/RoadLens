@@ -177,6 +177,26 @@ export default function C1Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            <nav className="hidden md:flex items-center gap-1.5 text-xs font-semibold text-slate-600 mr-2">
+              <Link
+                href="/c2"
+                className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-700 hover:bg-indigo-100 transition-colors"
+              >
+                C2 · Segment →
+              </Link>
+              <Link
+                href="/c3"
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 transition-colors"
+              >
+                C3 · Measure
+              </Link>
+              <Link
+                href="/c4"
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 transition-colors"
+              >
+                C4 · Assess
+              </Link>
+            </nav>
             <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               {model?.model_version ?? "YOLOv8m Base Model Operational"}
@@ -534,7 +554,11 @@ export default function C1Dashboard() {
                 onSelectRecord={setSelectedRecordId}
               />
 
-              <C2HandoffCard records={records} />
+              <C2HandoffCard
+                records={records}
+                runId={activeRun.run_id}
+                surveyId={activeRun.survey_id}
+              />
             </div>
           </div>
         )}

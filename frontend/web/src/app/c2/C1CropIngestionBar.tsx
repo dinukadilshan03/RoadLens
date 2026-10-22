@@ -1,33 +1,66 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useRef } from "react";
+import Link from "next/link";
+import { useState, useRef, useEffect } from "react";
 import { BENCHMARK_PRESETS, type BenchmarkPreset, type C1CropItem } from "./api";
 
 interface C1CropIngestionBarProps {
   c1Crops: C1CropItem[];
   selectedCropId: string | null;
+  activeC1RunFilter?: string | null;
+  onChangeC1RunFilter?: (runId: string | null) => void;
   onSelectC1Crop: (crop: C1CropItem) => void;
+  onBatchSegmentC1Run?: (c1RunId: string) => void;
   onSelectPreset: (preset: BenchmarkPreset) => void;
   onUploadFile: (file: File) => void;
   isLoading: boolean;
+  defaultTab?: "c1_feed" | "presets" | "upload";
 }
 
 export default function C1CropIngestionBar({
   c1Crops,
   selectedCropId,
+  activeC1RunFilter,
+  onChangeC1RunFilter,
   onSelectC1Crop,
+  onBatchSegmentC1Run,
   onSelectPreset,
   onUploadFile,
   isLoading,
+  defaultTab,
 }: C1CropIngestionBarProps) {
-  const [activeTab, setActiveTab] = useState<"c1_feed" | "presets" | "upload">("presets");
+  const [activeTab, setActiveTab] = useState<"c1_feed" | "presets" | "upload">(
+    defaultTab || "presets"
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       onUploadFile(e.target.files[0]);
     }
+  };
+
+  const uniqueC1RunIds = Array.from(new Set(c1Crops.map((c) => c.run_id).filter(Boolean)));
+  const filteredCrops = activeC1RunFilter
+    ? c1Crops.filter((c) => c.run_id === activeC1RunFilter)
+    : c1Crops;
+
+  const getCropImageUrl = (crop: C1CropItem) => {
+    if (crop.crop_url) return crop.crop_url;
+    if (
+      crop.crop_artifact.startsWith("http") ||
+      crop.crop_artifact.startsWith("/api/v1")
+    ) {
+      return crop.crop_artifact;
+    }
+    return `/api/v1/c1/runs/${crop.run_id}/artifacts/crops/${crop.crop_artifact}`;
   };
 
   return (
@@ -134,44 +167,107 @@ export default function C1CropIngestionBar({
 
       {/* Tab 2: Upstream C1 Live Feed Crops */}
       {activeTab === "c1_feed" && (
-        <div>
-          {c1Crops.length === 0 ? (
+        <div className="space-y-3">
+          {uniqueC1RunIds.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-slate-400">Filter by C1 Run:</span>
+                <button
+                  type="button"
+                  onClick={() => onChangeC1RunFilter?.(null)}
+                  className={`rounded px-2 py-0.5 text-[10px] border transition ${
+                    !activeC1RunFilter
+                      ? "border-indigo-500 bg-indigo-600/20 text-indigo-200"
+                      : "border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  All Runs ({c1Crops.length})
+                </button>
+                {uniqueC1RunIds.slice(0, 6).map((rId) => (
+                  <button
+                    key={rId}
+                    type="button"
+                    onClick={() => onChangeC1RunFilter?.(rId)}
+                    className={`rounded px-2 py-0.5 text-[10px] border transition ${
+                      activeC1RunFilter === rId
+                        ? "border-indigo-500 bg-indigo-600/20 text-indigo-200"
+                        : "border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {rId.slice(0, 8)}
+                  </button>
+                ))}
+              </div>
+
+              {onBatchSegmentC1Run && (activeC1RunFilter || uniqueC1RunIds[0]) && (
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() =>
+                    onBatchSegmentC1Run(activeC1RunFilter || uniqueC1RunIds[0])
+                  }
+                  className="rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer"
+                >
+                  Segment All in Run ({(activeC1RunFilter || uniqueC1RunIds[0]).slice(0, 8)}) ▶
+                </button>
+              )}
+            </div>
+          )}
+
+          {filteredCrops.length === 0 ? (
             <div className="text-center py-8 text-slate-500 text-xs">
               <svg className="w-8 h-8 mx-auto mb-2 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
-              No upstream C1 defect crops detected yet in PostgreSQL database.
-              <p className="text-slate-600 mt-1">Run a survey in Component 1 or switch to Benchmark Presets above.</p>
+              No upstream C1 defect crops detected yet.
+              <p className="text-slate-600 mt-1">
+                <Link href="/c1" className="text-indigo-400 hover:underline">
+                  Run a road inspection in Component 1 →
+                </Link>{" "}
+                or switch to Benchmark Presets above.
+              </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 max-h-60 overflow-y-auto pr-1">
-              {c1Crops.map((crop) => {
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 max-h-64 overflow-y-auto pr-1">
+              {filteredCrops.map((crop) => {
                 const isSelected = selectedCropId === crop.record_id;
+                const isSegmented = Boolean(crop.latest_c2_run_id);
                 return (
                   <div
                     key={crop.record_id}
                     onClick={() => !isLoading && onSelectC1Crop(crop)}
-                    className={`flex flex-col p-2 rounded-lg border transition cursor-pointer ${
+                    className={`flex flex-col justify-between p-2 rounded-lg border transition cursor-pointer ${
                       isSelected
-                        ? "border-indigo-500 bg-indigo-950/30"
+                        ? "border-indigo-500 bg-indigo-950/30 ring-1 ring-indigo-500"
                         : "border-slate-850 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-900"
                     }`}
                   >
-                    <div className="relative h-24 w-full rounded overflow-hidden bg-slate-900 mb-2 border border-slate-800">
-                      <img
-                        src={crop.crop_artifact}
-                        alt={crop.display_name}
-                        className="w-full h-full object-contain"
-                      />
+                    <div>
+                      <div className="relative h-24 w-full rounded overflow-hidden bg-slate-900 mb-2 border border-slate-800">
+                        <img
+                          src={getCropImageUrl(crop)}
+                          alt={crop.display_name}
+                          className="w-full h-full object-contain"
+                        />
+                        {isSegmented && (
+                          <span className="absolute top-1 right-1 rounded bg-emerald-950/90 border border-emerald-500/40 px-1.5 py-0.5 text-[9px] font-mono font-bold text-emerald-300">
+                            Segmented ✓
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] font-semibold text-slate-200 truncate">
+                        {crop.display_name}
+                      </div>
+                      <div className="text-[10px] font-mono text-emerald-400 mt-0.5">
+                        Conf: {(crop.confidence * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-[9px] font-mono text-slate-500 truncate mt-0.5">
+                        {crop.crop_transform.width}×{crop.crop_transform.height}px · ({crop.crop_transform.origin_xy[0]},{crop.crop_transform.origin_xy[1]})
+                      </div>
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-200 truncate">
-                      {crop.display_name}
-                    </div>
-                    <div className="text-[10px] font-mono text-emerald-400 mt-0.5">
-                      Conf: {(crop.confidence * 100).toFixed(1)}%
-                    </div>
-                    <div className="text-[9px] font-mono text-slate-500 truncate mt-0.5">
-                      {crop.crop_transform.width}×{crop.crop_transform.height}px
+                    <div className="mt-1.5 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[9px] font-mono text-slate-400">
+                      <span className="truncate">{crop.survey_id || crop.run_id.slice(0, 8)}</span>
+                      <span className="text-indigo-400 font-semibold">Segment ▶</span>
                     </div>
                   </div>
                 );

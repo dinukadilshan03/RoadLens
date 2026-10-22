@@ -17,6 +17,8 @@ References:
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import threading
 import uuid
@@ -123,9 +125,20 @@ def _iso(dt: datetime | str | None) -> str | None:
 class PostgresRunStore:
     """PostgreSQL run store for Component 2."""
 
-    def __init__(self, root: str | Path):
-        self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
+    def __init__(self, root: str | Path, c1_storage_dir: str | Path | None = None):
+        candidate_root = Path(root)
+        fallback_root = Path(__file__).resolve().parents[3] / "ml" / "c2" / "runs"
+        try:
+            candidate_root.mkdir(parents=True, exist_ok=True)
+            test_dir = candidate_root / ".write_check"
+            test_dir.mkdir(exist_ok=True)
+            test_dir.rmdir()
+            self.root = candidate_root
+        except OSError:
+            fallback_root.mkdir(parents=True, exist_ok=True)
+            self.root = fallback_root
+        default_c1 = os.environ.get("C1_STORAGE_DIR") or (Path(__file__).resolve().parents[3] / "ml" / "c1" / "runs")
+        self.c1_root = Path(c1_storage_dir or default_c1)
         self._lock = threading.Lock()
         self._schema_ready = False
 
@@ -368,24 +381,144 @@ class PostgresRunStore:
         except Exception:
             return []
 
-    def get_available_c1_crops(self, limit: int = 20) -> list[dict]:
-        """Queries detected crops from C1 observations table so C2 can ingest them."""
+    @staticmethod
+    def _enrich_c1_crop(row: dict) -> dict:
+        item = dict(row)
+        r_id = item.get("run_id") or item.get("external_run_id")
+        item["run_id"] = r_id
+        item["created_at"] = _iso(item.get("created_at"))
+        crop_art = item.get("crop_artifact")
+        if crop_art and r_id:
+            if str(crop_art).startswith("http") or str(crop_art).startswith("/api/v1"):
+                item["crop_url"] = str(crop_art)
+            else:
+                item["crop_url"] = f"/api/v1/c1/runs/{r_id}/artifacts/crops/{crop_art}"
+        ann_frame = item.get("annotated_frame")
+        if ann_frame and r_id:
+            if str(ann_frame).startswith("http") or str(ann_frame).startswith("/api/v1"):
+                item["annotated_url"] = str(ann_frame)
+            else:
+                item["annotated_url"] = f"/api/v1/c1/runs/{r_id}/artifacts/annotated/{ann_frame}"
+        return item
+
+    def get_available_c1_crops(self, limit: int = 50, c1_run_id: str | None = None) -> list[dict]:
+        """Queries detected crops from C1 observations table (with disk fallback) so C2 can ingest them."""
+        try:
+            with self._conn() as conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    where_clause = "WHERE o.crop_artifact IS NOT NULL"
+                    params: list = []
+                    if c1_run_id:
+                        where_clause += " AND o.run_id = %s"
+                        params.append(c1_run_id)
+                    params.append(limit)
+                    cur.execute(
+                        f"""
+                        SELECT o.run_id, o.record_id, o.defect_id, o.survey_id, o.source_media,
+                               o.frame_idx, o.frame_dimensions, o.damage_class, o.class_id,
+                               o.display_name, o.confidence, o.bbox, o.annotated_frame,
+                               o.crop_artifact, o.crop_transform, o.location, o.created_at,
+                               (
+                                   SELECT r.run_id
+                                   FROM c2_runs r
+                                   WHERE r.c1_observation_id = o.record_id
+                                     AND r.status = 'succeeded'
+                                   ORDER BY r.created_at DESC
+                                   LIMIT 1
+                               ) AS latest_c2_run_id
+                        FROM c1_observations o
+                        {where_clause}
+                        ORDER BY o.created_at DESC, o.id ASC
+                        LIMIT %s
+                        """,
+                        params,
+                    )
+                    rows = cur.fetchall()
+                    if rows:
+                        return [self._enrich_c1_crop(r) for r in rows]
+        except Exception:
+            pass
+
+        return self._disk_c1_crops(limit=limit, c1_run_id=c1_run_id)
+
+    def get_c1_observation(self, c1_run_id: str, c1_observation_id: str) -> dict | None:
+        """Fetches a single C1 observation record by run_id and observation record_id."""
         try:
             with self._conn() as conn:
                 with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute(
                         """
-                        SELECT run_id, record_id, defect_id, damage_class, display_name,
-                               confidence, crop_artifact, crop_transform, created_at
+                        SELECT run_id, record_id, defect_id, survey_id, source_media,
+                               frame_idx, frame_dimensions, damage_class, class_id,
+                               display_name, confidence, bbox, annotated_frame,
+                               crop_artifact, crop_transform, location, record, created_at
                         FROM c1_observations
-                        WHERE crop_artifact IS NOT NULL
-                        ORDER BY created_at DESC LIMIT %s
+                        WHERE run_id = %s AND record_id = %s
+                        LIMIT 1
                         """,
-                        (limit,),
+                        (c1_run_id, c1_observation_id),
                     )
-                    rows = cur.fetchall()
-                    for r in rows:
-                        r["created_at"] = _iso(r.get("created_at"))
-                    return rows
+                    row = cur.fetchone()
+                    if row:
+                        return self._enrich_c1_crop(row)
         except Exception:
+            pass
+
+        crops = self._disk_c1_crops(limit=500, c1_run_id=c1_run_id)
+        for c in crops:
+            if c.get("record_id") == c1_observation_id:
+                return c
+        return None
+
+    def _disk_c1_crops(self, limit: int = 50, c1_run_id: str | None = None) -> list[dict]:
+        if not self.c1_root.exists():
             return []
+        c2_by_obs: dict[str, str] = {}
+        for r in self.list(limit=200):
+            if r.get("status") == "succeeded" and r.get("c1_observation_id"):
+                obs_id = r["c1_observation_id"]
+                if obs_id not in c2_by_obs:
+                    c2_by_obs[obs_id] = r["run_id"]
+
+        run_dirs = []
+        if c1_run_id:
+            candidate = self.c1_root / c1_run_id
+            if candidate.is_dir():
+                run_dirs.append(candidate)
+        else:
+            for d in self.c1_root.iterdir():
+                if d.is_dir() and RUN_ID.match(d.name):
+                    run_dirs.append(d)
+            run_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+        items: list[dict] = []
+        for d in run_dirs:
+            jsonl_path = d / "outputs" / "c1_records.jsonl"
+            run_json_path = d / "run.json"
+            created_at = None
+            if run_json_path.is_file():
+                try:
+                    with open(run_json_path, encoding="utf-8") as rf:
+                        created_at = json.load(rf).get("created_at")
+                except Exception:
+                    pass
+            if not jsonl_path.is_file():
+                continue
+            try:
+                with open(jsonl_path, encoding="utf-8") as f:
+                    for line in f:
+                        if not line.strip():
+                            continue
+                        rec = json.loads(line)
+                        if not rec.get("crop_artifact"):
+                            continue
+                        rec["run_id"] = rec.get("external_run_id") or d.name
+                        rec["created_at"] = rec.get("created_at") or created_at or now()
+                        rec["latest_c2_run_id"] = c2_by_obs.get(rec.get("record_id", ""))
+                        items.append(self._enrich_c1_crop(rec))
+                        if len(items) >= limit:
+                            return items
+            except Exception:
+                continue
+        return items
+

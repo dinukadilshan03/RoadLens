@@ -22,7 +22,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # Create a non-privileged system user and establish application directory ownership
 RUN useradd -m -u 1000 appuser && \
     mkdir -p /app && \
-    chown appuser:appuser /app
+    chown -R appuser:appuser /app
 
 # Copy unified dependency specifications to maximize Docker layer caching
 COPY pyproject.toml uv.lock ./
@@ -30,6 +30,9 @@ COPY pyproject.toml uv.lock ./
 # Install runtime-only dependencies into /app/.venv in a single deterministic pass
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
+
+# Ensure data mount points exist and are owned by appuser
+RUN mkdir -p /data/c1 /data/c2 /data/c4 && chown -R appuser:appuser /data
 
 # Copy application packages directly with appuser ownership (avoids slow recursive chown on .venv)
 COPY --chown=appuser:appuser backend ./backend

@@ -14,6 +14,7 @@ Layout:
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import uuid
@@ -28,9 +29,20 @@ def now() -> str:
 
 
 class RunStore:
-    def __init__(self, root: str | Path):
-        self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
+    def __init__(self, root: str | Path, c1_storage_dir: str | Path | None = None):
+        candidate_root = Path(root)
+        fallback_root = Path(__file__).resolve().parents[1] / "runs"
+        try:
+            candidate_root.mkdir(parents=True, exist_ok=True)
+            test_dir = candidate_root / ".write_check"
+            test_dir.mkdir(exist_ok=True)
+            test_dir.rmdir()
+            self.root = candidate_root
+        except OSError:
+            fallback_root.mkdir(parents=True, exist_ok=True)
+            self.root = fallback_root
+        default_c1 = os.environ.get("C1_STORAGE_DIR") or (Path(__file__).resolve().parents[2] / "c1" / "runs")
+        self.c1_root = Path(c1_storage_dir or default_c1)
         self._lock = threading.Lock()
 
     def new(
@@ -135,8 +147,84 @@ class RunStore:
             return results[0]
         return None
 
-    def get_available_c1_crops(self, limit: int = 20) -> list[dict]:
-        return []
+    @staticmethod
+    def _enrich_c1_crop(row: dict) -> dict:
+        item = dict(row)
+        r_id = item.get("run_id") or item.get("external_run_id")
+        item["run_id"] = r_id
+        crop_art = item.get("crop_artifact")
+        if crop_art and r_id:
+            if str(crop_art).startswith("http") or str(crop_art).startswith("/api/v1"):
+                item["crop_url"] = str(crop_art)
+            else:
+                item["crop_url"] = f"/api/v1/c1/runs/{r_id}/artifacts/crops/{crop_art}"
+        ann_frame = item.get("annotated_frame")
+        if ann_frame and r_id:
+            if str(ann_frame).startswith("http") or str(ann_frame).startswith("/api/v1"):
+                item["annotated_url"] = str(ann_frame)
+            else:
+                item["annotated_url"] = f"/api/v1/c1/runs/{r_id}/artifacts/annotated/{ann_frame}"
+        return item
+
+    def get_available_c1_crops(self, limit: int = 50, c1_run_id: str | None = None) -> list[dict]:
+        if not self.c1_root.exists():
+            return []
+
+        c2_by_obs: dict[str, str] = {}
+        for r in self.list(limit=200):
+            if r.get("status") == "succeeded" and r.get("c1_observation_id"):
+                obs_id = r["c1_observation_id"]
+                if obs_id not in c2_by_obs:
+                    c2_by_obs[obs_id] = r["run_id"]
+
+        run_dirs = []
+        if c1_run_id:
+            candidate = self.c1_root / c1_run_id
+            if candidate.is_dir():
+                run_dirs.append(candidate)
+        else:
+            for d in self.c1_root.iterdir():
+                if d.is_dir() and RUN_ID.match(d.name):
+                    run_dirs.append(d)
+            run_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+        items: list[dict] = []
+        for d in run_dirs:
+            jsonl_path = d / "outputs" / "c1_records.jsonl"
+            run_json_path = d / "run.json"
+            created_at = None
+            if run_json_path.is_file():
+                try:
+                    with open(run_json_path, encoding="utf-8") as rf:
+                        created_at = json.load(rf).get("created_at")
+                except Exception:
+                    pass
+            if not jsonl_path.is_file():
+                continue
+            try:
+                with open(jsonl_path, encoding="utf-8") as f:
+                    for line in f:
+                        if not line.strip():
+                            continue
+                        rec = json.loads(line)
+                        if not rec.get("crop_artifact"):
+                            continue
+                        rec["run_id"] = rec.get("external_run_id") or d.name
+                        rec["created_at"] = rec.get("created_at") or created_at or now()
+                        rec["latest_c2_run_id"] = c2_by_obs.get(rec.get("record_id", ""))
+                        items.append(self._enrich_c1_crop(rec))
+                        if len(items) >= limit:
+                            return items
+            except Exception:
+                continue
+        return items
+
+    def get_c1_observation(self, c1_run_id: str, c1_observation_id: str) -> dict | None:
+        crops = self.get_available_c1_crops(limit=500, c1_run_id=c1_run_id)
+        for c in crops:
+            if c.get("record_id") == c1_observation_id:
+                return c
+        return None
 
     def _write(self, run_id: str, meta: dict) -> None:
         p = self.dir(run_id) / "run.json"

@@ -60,6 +60,13 @@ class C2Request:
     external_run_id: str | None = None
     upstream_c1_id: str | None = None
     upstream_c1_run_id: str | None = None
+    upstream_c1_defect_id: str | None = None
+    upstream_c1_confidence: float | None = None
+    upstream_c1_bbox: list[float] | None = None
+    upstream_c1_crop_transform: dict[str, Any] | None = None
+    upstream_c1_frame_dimensions: dict[str, int] | None = None
+    upstream_c1_frame_idx: int | None = None
+    upstream_c1_source_media: str | None = None
     cgan_weights_path: Path | None = None
     segmenter_weights_path: Path | None = None
     threshold: float = 0.5
@@ -473,6 +480,27 @@ def run(request: C2Request, context: Any) -> C2Result:
         "visual_overlay": "visual_overlay.png",
     }
 
+    base_transform = request.upstream_c1_crop_transform or {
+        "origin_xy": [0.0, 0.0],
+        "width": float(w_orig),
+        "height": float(h_orig),
+        "source_frame_size": (
+            [request.upstream_c1_frame_dimensions["width"], request.upstream_c1_frame_dimensions["height"]]
+            if request.upstream_c1_frame_dimensions
+            and "width" in request.upstream_c1_frame_dimensions
+            and "height" in request.upstream_c1_frame_dimensions
+            else [w_orig, h_orig]
+        ),
+    }
+    pixel_transform = {
+        **base_transform,
+        "c2_canvas_size": [256, 256],
+        "scale_x_to_c2": round(256.0 / max(1, w_orig), 6),
+        "scale_y_to_c2": round(256.0 / max(1, h_orig), 6),
+        "scale_x_to_crop": round(w_orig / 256.0, 6),
+        "scale_y_to_crop": round(h_orig / 256.0, 6),
+    }
+
     # Contract record conforming to docs/interfaces.md
     contract_record = {
         "schema_version": "1.0",
@@ -483,6 +511,12 @@ def run(request: C2Request, context: Any) -> C2Result:
         "upstream": {
             "c1_run_id": request.upstream_c1_run_id,
             "c1_observation_id": request.upstream_c1_id,
+            "c1_defect_id": request.upstream_c1_defect_id,
+            "detection_confidence": request.upstream_c1_confidence,
+            "bbox": request.upstream_c1_bbox,
+            "frame_idx": request.upstream_c1_frame_idx,
+            "frame_dimensions": request.upstream_c1_frame_dimensions,
+            "source_media": request.upstream_c1_source_media,
         },
         "damage_class": request.damage_class,
         "is_crack": is_crack,
@@ -492,6 +526,7 @@ def run(request: C2Request, context: Any) -> C2Result:
             "original_width": w_orig,
             "original_height": h_orig,
         },
+        "pixel_transform": pixel_transform,
         "alpha_weight": round(alpha_score, 4),
         "metrics": {
             "area_pixels": area_pixels,
@@ -514,6 +549,9 @@ def run(request: C2Request, context: Any) -> C2Result:
         "run_id": run_id,
         "survey_id": request.survey_id,
         "damage_class": request.damage_class,
+        "c1_run_id": request.upstream_c1_run_id,
+        "c1_observation_id": request.upstream_c1_id,
+        "c1_defect_id": request.upstream_c1_defect_id,
         "alpha_score": round(alpha_score, 4),
         "latency_ms": latency_ms,
         "vram_mb": vram_mb,

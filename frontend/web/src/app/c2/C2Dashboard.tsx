@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   api,
@@ -24,12 +24,20 @@ export default function C2Dashboard() {
   const [currentRun, setCurrentRun] = useState<C2Run | null>(null);
   const [c1Crops, setC1Crops] = useState<C1CropItem[]>([]);
   const [selectedCropId, setSelectedCropId] = useState<string | null>(null);
+  const [activeC1RunFilter, setActiveC1RunFilter] = useState<string | null>(null);
+  const [defaultIngestionTab, setDefaultIngestionTab] = useState<
+    "c1_feed" | "presets" | "upload"
+  >("presets");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"quad" | "split" | "telemetry" | "handoff">("quad");
   const [activeArtifactTab, setActiveArtifactTab] = useState<
     keyof Pick<C2Artifacts, "mask_2d" | "skeleton_1px" | "confidence_map" | "visual_overlay">
   >("visual_overlay");
+  const handledUrlParamsRef = useRef(false);
+
+  // Helper to check if run is actively processing
+  const isActive = (status?: string | null) => status === "queued" || status === "running";
 
   // Fetch initial model metadata, runs, and upstream C1 crops
   const loadData = useCallback(async () => {
@@ -46,22 +54,73 @@ export default function C2Dashboard() {
 
       if (runsData.status === "fulfilled" && runsData.value.length > 0) {
         setRuns(runsData.value);
-        if (!currentRun) {
-          // Select most recent run
-          setCurrentRun(runsData.value[0]);
-        }
+        setCurrentRun((prev) => prev || runsData.value[0]);
       }
     } catch (err: any) {
       console.warn("Failed to load initial C2 data:", err);
     }
-  }, [currentRun]);
+  }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Helper to check if run is actively processing
-  const isActive = (status?: string | null) => status === "queued" || status === "running";
+  // Handle incoming deep-link parameters from C1 (/c2?c1_run_id=...&c1_observation_id=...&auto_run=1 or &c2_run_id=...)
+  useEffect(() => {
+    if (handledUrlParamsRef.current || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const c1RunId = params.get("c1_run_id");
+    const c1ObsId = params.get("c1_observation_id");
+    const c2RunId = params.get("c2_run_id");
+    const autoRun = params.get("auto_run") === "1";
+
+    if (!c1RunId && !c1ObsId && !c2RunId) return;
+    handledUrlParamsRef.current = true;
+
+    if (c1RunId) {
+      setDefaultIngestionTab("c1_feed");
+      setActiveC1RunFilter(c1RunId);
+    }
+    if (c1ObsId) {
+      setSelectedCropId(c1ObsId);
+      setDefaultIngestionTab("c1_feed");
+    }
+
+    (async () => {
+      try {
+        if (c2RunId) {
+          setIsLoading(true);
+          const loaded = await api.run(c2RunId);
+          setCurrentRun(loaded);
+          setRuns((prev) => [loaded, ...prev.filter((r) => r.run_id !== loaded.run_id)]);
+          if (!isActive(loaded.status)) {
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        if (c1RunId && c1ObsId && autoRun) {
+          setIsLoading(true);
+          setError(null);
+          const formData = new FormData();
+          formData.append("c1_run_id", c1RunId);
+          formData.append("c1_observation_id", c1ObsId);
+          const res = await api.triggerRun(formData);
+          if (res?.run_id) {
+            const initial = await api.run(res.run_id);
+            setCurrentRun(initial);
+            setRuns((prev) => [initial, ...prev.filter((r) => r.run_id !== initial.run_id)]);
+            if (!isActive(initial.status)) {
+              setIsLoading(false);
+            }
+          }
+        }
+      } catch (err: any) {
+        setError(err?.message || "Failed to process C1 handoff request");
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
   // Polling for Active Run completion
   useEffect(() => {
@@ -77,8 +136,10 @@ export default function C2Dashboard() {
         if (!isActive(updated.status)) {
           clearInterval(interval);
           setIsLoading(false);
+          // Refresh C1 crops list so Segmented badge updates
+          api.c1Crops().then(setC1Crops).catch(() => {});
         }
-      } catch (e) {
+      } catch {
         // Transient poll error
       }
     }, 600);
@@ -96,15 +157,14 @@ export default function C2Dashboard() {
       formData.append("survey_id", "SURVEY-BENCHMARK-2026");
       formData.append("preset_id", preset.id);
 
-      // Attempt to fetch preset image thumbnail as blob
       try {
         const imgRes = await fetch(preset.thumbnail);
         if (imgRes.ok) {
           const blob = await imgRes.blob();
           formData.append("image", blob, `${preset.id}.jpg`);
         }
-      } catch (e) {
-        // Fallback: let backend handle mock synthesis
+      } catch {
+        // Fallback: let backend load preset from disk
       }
 
       const res = await api.triggerRun(formData);
@@ -130,20 +190,9 @@ export default function C2Dashboard() {
     try {
       const formData = new FormData();
       formData.append("damage_class", crop.damage_class);
-      formData.append("survey_id", crop.run_id || "SURVEY-C1-FEED");
+      formData.append("survey_id", crop.survey_id || crop.run_id || "SURVEY-C1-FEED");
       formData.append("c1_run_id", crop.run_id);
       formData.append("c1_observation_id", crop.record_id);
-
-      // Fetch crop artifact image as blob
-      try {
-        const imgRes = await fetch(crop.crop_artifact);
-        if (imgRes.ok) {
-          const blob = await imgRes.blob();
-          formData.append("image", blob, `${crop.record_id}.jpg`);
-        }
-      } catch (e) {
-        // Proceed with backend ingestion
-      }
 
       const res = await api.triggerRun(formData);
       if (res?.run_id) {
@@ -152,10 +201,38 @@ export default function C2Dashboard() {
         setRuns((prev) => [initial, ...prev.filter((r) => r.run_id !== initial.run_id)]);
         if (!isActive(initial.status)) {
           setIsLoading(false);
+          api.c1Crops().then(setC1Crops).catch(() => {});
         }
       }
     } catch (err: any) {
       setError(err?.message || "Failed to segment C1 defect crop");
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Batch Segmentation of an entire C1 Run
+  const handleBatchSegmentC1Run = async (c1RunId: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const batch = await api.triggerBatchFromC1(c1RunId);
+      const firstId = batch.runs?.[0]?.run_id;
+      const firstObsId = batch.runs?.[0]?.c1_observation_id;
+      if (firstObsId) setSelectedCropId(firstObsId);
+      if (firstId) {
+        const initial = await api.run(firstId);
+        setCurrentRun(initial);
+        const updatedRuns = await api.runs();
+        setRuns(updatedRuns);
+        if (!isActive(initial.status)) {
+          setIsLoading(false);
+          api.c1Crops().then(setC1Crops).catch(() => {});
+        }
+      } else {
+        setIsLoading(false);
+      }
+    } catch (err: any) {
+      setError(err?.message || "Failed to batch segment C1 run");
       setIsLoading(false);
     }
   };
@@ -215,6 +292,27 @@ export default function C2Dashboard() {
 
           {/* Model Status & Actions */}
           <div className="flex items-center gap-3">
+            <nav className="hidden md:flex items-center gap-1.5 text-[11px] font-mono">
+              <Link
+                href="/c1"
+                className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-blue-300 border border-slate-800 transition"
+              >
+                ← C1 · Detect
+              </Link>
+              <Link
+                href="/c3"
+                className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-slate-800 transition"
+              >
+                C3 · Measure →
+              </Link>
+              <Link
+                href="/c4"
+                className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition"
+              >
+                C4 · Assess
+              </Link>
+            </nav>
+
             <div className="hidden lg:flex items-center gap-2 text-[10px] font-mono">
               <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -223,10 +321,6 @@ export default function C2Dashboard() {
               <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
                 LTCA: 67 MB VRAM
-              </span>
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                Loss: cDice + Betti
               </span>
             </div>
 
@@ -278,10 +372,14 @@ export default function C2Dashboard() {
         <C1CropIngestionBar
           c1Crops={c1Crops}
           selectedCropId={selectedCropId}
+          activeC1RunFilter={activeC1RunFilter}
+          onChangeC1RunFilter={setActiveC1RunFilter}
           onSelectC1Crop={handleSelectC1Crop}
+          onBatchSegmentC1Run={handleBatchSegmentC1Run}
           onSelectPreset={handleSelectPreset}
           onUploadFile={handleUploadFile}
           isLoading={isLoading}
+          defaultTab={defaultIngestionTab}
         />
 
         {/* Primary Multi-Modal Cockpit View Selection */}

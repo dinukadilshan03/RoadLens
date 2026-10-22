@@ -17,23 +17,23 @@ References:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
 import shutil
-import threading
 import uuid
 from pathlib import Path
 from typing import Annotated
 
+import cv2
+import numpy as np
 from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from ml.c2.adapters.segmenter_adapter import (
     DEFAULT_CGAN_WEIGHTS,
     DEFAULT_SEGMENTER_WEIGHTS,
-    C2Cancelled,
-    C2InputError,
     C2Request,
     compute_sha256,
     run as run_segmenter,
@@ -77,9 +77,99 @@ def build_router(
     cgan_weights_path: Path = DEFAULT_CGAN_WEIGHTS,
     segmenter_weights_path: Path = DEFAULT_SEGMENTER_WEIGHTS,
     store: RunStore | None = None,
+    c1_storage_dir: Path | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/c2", tags=["c2-segmentation"])
-    run_store = store or RunStore(storage_dir)
+    c1_root = Path(
+        c1_storage_dir
+        or getattr(store, "c1_root", None)
+        or os.environ.get("C1_STORAGE_DIR")
+        or (C2_DIR.parent / "c1" / "runs")
+    )
+    run_store = store or RunStore(storage_dir, c1_storage_dir=c1_root)
+    if hasattr(run_store, "c1_root") and c1_storage_dir is not None:
+        run_store.c1_root = c1_root
+
+    def _resolve_c1_handoff(c1_run_id: str, c1_observation_id: str) -> tuple[dict | None, Path | None]:
+        obs = None
+        if hasattr(run_store, "get_c1_observation"):
+            obs = run_store.get_c1_observation(c1_run_id, c1_observation_id)
+
+        crops_dir = c1_root / c1_run_id / "outputs" / "crops"
+        crop_path: Path | None = None
+        if crops_dir.is_dir():
+            if obs and obs.get("crop_artifact"):
+                candidate = crops_dir / Path(str(obs["crop_artifact"])).name
+                if candidate.is_file():
+                    crop_path = candidate
+            if crop_path is None:
+                direct = crops_dir / f"{c1_observation_id}_crop.jpg"
+                if direct.is_file():
+                    crop_path = direct
+            if crop_path is None:
+                matches = sorted(crops_dir.glob(f"*{c1_observation_id}*"))
+                if matches:
+                    crop_path = matches[0]
+        return obs, crop_path
+
+    def _schedule_c2_execution(
+        background_tasks: BackgroundTasks,
+        *,
+        run_id: str,
+        run_dir: Path,
+        survey_id: str,
+        input_crop_path: Path,
+        damage_class: str,
+        threshold: float,
+        c1_run_id: str | None = None,
+        c1_observation_id: str | None = None,
+        c1_obs: dict | None = None,
+    ) -> None:
+        def _execute():
+            ctx = _StoreContext(run_store, run_id, run_dir / "outputs")
+            run_store.update(run_id, status="running", started_at=now())
+            try:
+                req = C2Request(
+                    survey_id=survey_id,
+                    input_crop_path=input_crop_path,
+                    damage_class=damage_class,
+                    external_run_id=run_id,
+                    upstream_c1_id=c1_observation_id,
+                    upstream_c1_run_id=c1_run_id,
+                    upstream_c1_defect_id=c1_obs.get("defect_id") if c1_obs else None,
+                    upstream_c1_confidence=c1_obs.get("confidence") if c1_obs else None,
+                    upstream_c1_bbox=c1_obs.get("bbox") if c1_obs else None,
+                    upstream_c1_crop_transform=c1_obs.get("crop_transform") if c1_obs else None,
+                    upstream_c1_frame_dimensions=c1_obs.get("frame_dimensions") if c1_obs else None,
+                    upstream_c1_frame_idx=c1_obs.get("frame_idx") if c1_obs else None,
+                    upstream_c1_source_media=c1_obs.get("source_media") if c1_obs else None,
+                    cgan_weights_path=cgan_weights_path,
+                    segmenter_weights_path=segmenter_weights_path,
+                    threshold=threshold,
+                )
+                res = run_segmenter(req, ctx)
+                run_store.complete(
+                    run_id,
+                    results=[res.record],
+                    status="succeeded",
+                    stage="finished",
+                    alpha_score=res.alpha_weight,
+                    latency_ms=res.latency_ms,
+                    vram_mb=res.vram_mb,
+                    artifacts=res.artifacts,
+                    summary=res.summary,
+                    finished_at=now(),
+                )
+            except Exception as ex:
+                log.exception(f"C2 run {run_id} failed: {ex}")
+                run_store.update(
+                    run_id,
+                    status="failed",
+                    error={"code": "processing_error", "message": str(ex)},
+                    finished_at=now(),
+                )
+
+        background_tasks.add_task(_execute)
 
     @router.get("/model")
     def get_model():
@@ -113,8 +203,8 @@ def build_router(
         }
 
     @router.get("/c1-available-crops")
-    def list_c1_crops(limit: int = 20):
-        crops = run_store.get_available_c1_crops(limit=limit)
+    def list_c1_crops(limit: int = 50, c1_run_id: str | None = None):
+        crops = run_store.get_available_c1_crops(limit=max(1, min(limit, 200)), c1_run_id=c1_run_id)
         return {"count": len(crops), "crops": crops}
 
     @router.post("/runs", status_code=202)
@@ -132,7 +222,26 @@ def build_router(
     ):
         target_file = crop_file if (crop_file is not None and crop_file.filename) else image
         active_sample_id = sample_id or preset_id
-        source = "c1_handoff" if (c1_run_id and c1_observation_id) else ("demo" if active_sample_id else "upload")
+        is_c1_handoff = bool(c1_run_id and c1_observation_id)
+        source = "c1_handoff" if is_c1_handoff else ("demo" if active_sample_id else "upload")
+
+        c1_obs: dict | None = None
+        c1_crop_path: Path | None = None
+        if is_c1_handoff and c1_run_id and c1_observation_id:
+            c1_obs, c1_crop_path = _resolve_c1_handoff(c1_run_id, c1_observation_id)
+            if c1_obs:
+                if survey_id in ("survey_default", "", "SURVEY-C1-FEED", c1_run_id):
+                    survey_id = c1_obs.get("survey_id") or survey_id
+                if damage_class in ("crack", "") or c1_obs.get("damage_class"):
+                    damage_class = c1_obs.get("damage_class") or damage_class
+            if c1_crop_path is None and (target_file is None or not target_file.filename):
+                return _error(
+                    404,
+                    "c1_crop_not_found",
+                    f"C1 crop for observation '{c1_observation_id}' in run '{c1_run_id}' was not found.",
+                    {"c1_run_id": c1_run_id, "c1_observation_id": c1_observation_id},
+                )
+
         meta = run_store.new(
             survey_id=survey_id,
             source=source,
@@ -144,13 +253,14 @@ def build_router(
         run_dir = run_store.dir(run_id)
         input_crop_path = run_dir / "inputs" / "crop.jpg"
 
-        # Determine input file
-        if target_file is not None and target_file.filename:
+        # Determine input file: prefer authoritative C1 crop on disk when c1_handoff is active
+        if is_c1_handoff and c1_crop_path is not None and c1_crop_path.is_file():
+            shutil.copy(c1_crop_path, input_crop_path)
+        elif target_file is not None and target_file.filename:
             with open(input_crop_path, "wb") as f:
                 content = target_file.file.read()
                 f.write(content)
         elif active_sample_id:
-            # Handle preset sample
             sample_file_map = {
                 "shadow_crack": C2_DIR / "data" / "samples" / "sample_shadow_crack.jpg",
                 "glare_alligator": C2_DIR / "data" / "samples" / "sample_glare_alligator.jpg",
@@ -161,67 +271,137 @@ def build_router(
             if src and src.exists():
                 shutil.copy(src, input_crop_path)
             else:
-                # Generate a synthetic demonstration pattern
                 img = np.full((256, 256, 3), 110, dtype=np.uint8)
                 cv2.line(img, (40, 20), (210, 230), (30, 30, 30), 3)
                 cv2.imwrite(str(input_crop_path), img)
-        elif c1_run_id and c1_observation_id:
-            # Look up crop artifact from C1 storage (supports both C1_STORAGE_DIR volume and local ml/c1/runs)
-            c1_root = Path(os.environ.get("C1_STORAGE_DIR") or (C2_DIR.parent / "c1" / "runs"))
-            c1_storage = c1_root / c1_run_id / "outputs" / "crops"
-            found = list(c1_storage.glob(f"*{c1_observation_id}*")) if c1_storage.exists() else []
-            if found:
-                shutil.copy(found[0], input_crop_path)
-            else:
-                # Synthesize fallback crop matching the defect
-                img = np.full((256, 256, 3), 120, dtype=np.uint8)
-                cv2.circle(img, (128, 128), 50, (40, 40, 40), -1)
-                cv2.imwrite(str(input_crop_path), img)
         else:
-            # Fallback sample crop
             img = np.full((256, 256, 3), 128, dtype=np.uint8)
             cv2.line(img, (30, 30), (220, 220), (30, 30, 30), 2)
             cv2.imwrite(str(input_crop_path), img)
 
-        def _execute():
-            ctx = _StoreContext(run_store, run_id, run_dir / "outputs")
-            run_store.update(run_id, status="running", started_at=now())
-            try:
-                req = C2Request(
-                    survey_id=survey_id,
-                    input_crop_path=input_crop_path,
-                    damage_class=damage_class,
-                    external_run_id=run_id,
-                    upstream_c1_id=c1_observation_id,
-                    upstream_c1_run_id=c1_run_id,
-                    cgan_weights_path=cgan_weights_path,
-                    segmenter_weights_path=segmenter_weights_path,
-                    threshold=threshold,
-                )
-                res = run_segmenter(req, ctx)
-                run_store.complete(
-                    run_id,
-                    results=[res.record],
-                    status="succeeded",
-                    stage="finished",
-                    alpha_score=res.alpha_weight,
-                    latency_ms=res.latency_ms,
-                    vram_mb=res.vram_mb,
-                    artifacts=res.artifacts,
-                    summary=res.summary,
-                    finished_at=now(),
-                )
-            except Exception as ex:
-                log.exception(f"C2 run {run_id} failed: {ex}")
-                run_store.update(
-                    run_id,
-                    status="failed",
-                    error={"code": "processing_error", "message": str(ex)},
-                    finished_at=now(),
-                )
+        _schedule_c2_execution(
+            background_tasks,
+            run_id=run_id,
+            run_dir=run_dir,
+            survey_id=survey_id,
+            input_crop_path=input_crop_path,
+            damage_class=damage_class,
+            threshold=threshold,
+            c1_run_id=c1_run_id,
+            c1_observation_id=c1_observation_id,
+            c1_obs=c1_obs,
+        )
+        return {
+            "run_id": run_id,
+            "status": "queued",
+            "source": source,
+            "survey_id": survey_id,
+            "damage_class": damage_class,
+            "c1_run_id": c1_run_id,
+            "c1_observation_id": c1_observation_id,
+        }
 
-        background_tasks.add_task(_execute)
-        return {"run_id": run_id, "status": "queued"}
+    @router.post("/runs/from-c1", status_code=202)
+    def create_runs_from_c1(
+        background_tasks: BackgroundTasks,
+        c1_run_id: Annotated[str, Form(description="Upstream C1 run_id")],
+        observation_ids: Annotated[
+            str | None,
+            Form(description="Optional comma-separated or JSON array of C1 observation record_ids"),
+        ] = None,
+        threshold: Annotated[float, Form()] = 0.5,
+    ):
+        available = run_store.get_available_c1_crops(limit=200, c1_run_id=c1_run_id)
+        if not available:
+            return _error(
+                404,
+                "c1_crops_not_found",
+                f"No C1 defect crops found for C1 run '{c1_run_id}'.",
+                {"c1_run_id": c1_run_id},
+            )
+
+        selected_ids: set[str] | None = None
+        if observation_ids:
+            raw = observation_ids.strip()
+            if raw.startswith("["):
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        selected_ids = {str(x).strip() for x in parsed if str(x).strip()}
+                except json.JSONDecodeError:
+                    return _error(422, "invalid_input", "observation_ids must be a valid JSON list or comma-separated string.")
+            else:
+                selected_ids = {part.strip() for part in raw.split(",") if part.strip()}
+
+        targets = [c for c in available if selected_ids is None or c.get("record_id") in selected_ids]
+        if not targets:
+            return _error(
+                404,
+                "c1_observations_not_found",
+                "None of the requested observation_ids matched available crops in the C1 run.",
+                {"c1_run_id": c1_run_id},
+            )
+
+        created_runs: list[dict] = []
+        survey_id = targets[0].get("survey_id") or f"survey-{c1_run_id[:8]}"
+
+        for obs in targets:
+            obs_id = obs["record_id"]
+            _, crop_path = _resolve_c1_handoff(c1_run_id, obs_id)
+            if crop_path is None or not crop_path.is_file():
+                continue
+
+            obs_survey_id = obs.get("survey_id") or survey_id
+            obs_damage_class = obs.get("damage_class") or "crack"
+            meta = run_store.new(
+                survey_id=obs_survey_id,
+                source="c1_handoff",
+                damage_class=obs_damage_class,
+                c1_run_id=c1_run_id,
+                c1_observation_id=obs_id,
+            )
+            r_id = meta["run_id"]
+            r_dir = run_store.dir(r_id)
+            input_crop_path = r_dir / "inputs" / "crop.jpg"
+            shutil.copy(crop_path, input_crop_path)
+
+            _schedule_c2_execution(
+                background_tasks,
+                run_id=r_id,
+                run_dir=r_dir,
+                survey_id=obs_survey_id,
+                input_crop_path=input_crop_path,
+                damage_class=obs_damage_class,
+                threshold=threshold,
+                c1_run_id=c1_run_id,
+                c1_observation_id=obs_id,
+                c1_obs=obs,
+            )
+            created_runs.append(
+                {
+                    "run_id": r_id,
+                    "c1_run_id": c1_run_id,
+                    "c1_observation_id": obs_id,
+                    "defect_id": obs.get("defect_id"),
+                    "damage_class": obs_damage_class,
+                    "status": "queued",
+                }
+            )
+
+        if not created_runs:
+            return _error(
+                404,
+                "c1_crop_files_missing",
+                f"Crop files on disk were not found for C1 run '{c1_run_id}'.",
+                {"c1_run_id": c1_run_id},
+            )
+
+        return {
+            "c1_run_id": c1_run_id,
+            "survey_id": survey_id,
+            "count": len(created_runs),
+            "runs": created_runs,
+        }
 
     def _format_run(meta: dict) -> dict:
         r_id = meta.get("run_id")

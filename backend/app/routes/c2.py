@@ -12,6 +12,7 @@ from ml.c2.api import build_router
 
 REPO_DIR = Path(__file__).resolve().parents[3]
 STORAGE_DIR = Path(os.environ.get("C2_STORAGE_DIR") or REPO_DIR / "ml" / "c2" / "runs")
+C1_STORAGE_DIR = Path(os.environ.get("C1_STORAGE_DIR") or REPO_DIR / "ml" / "c1" / "runs")
 CGAN_WEIGHTS_PATH = Path(
     os.environ.get("C2_CGAN_WEIGHTS_PATH") or REPO_DIR / "ml" / "c2" / "weights" / "cgan_frozen_sensor.pth"
 )
@@ -23,5 +24,6 @@ router = build_router(
     storage_dir=STORAGE_DIR,
     cgan_weights_path=CGAN_WEIGHTS_PATH,
     segmenter_weights_path=SEGMENTER_WEIGHTS_PATH,
-    store=PostgresRunStore(STORAGE_DIR),
+    store=PostgresRunStore(STORAGE_DIR, c1_storage_dir=C1_STORAGE_DIR),
+    c1_storage_dir=C1_STORAGE_DIR,
 )

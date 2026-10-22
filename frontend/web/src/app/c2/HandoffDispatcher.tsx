@@ -26,18 +26,34 @@ export default function HandoffDispatcher({ run }: HandoffDispatcherProps) {
 
   const result = run?.results?.[0];
   const isCrack = result?.is_crack ?? run?.damage_class?.toLowerCase().includes("crack") ?? true;
+  const upstreamC1 = result?.upstream;
+  const pixelTransform = result?.pixel_transform;
 
   // C3 Severity Profiler Contract Payload
   const c3Payload = {
     schema_version: "roadlens.c2.c3.handoff.v1",
-    upstream_defect_id: result?.record_id || `rec_c2_${run?.run_id || "demo"}`,
+    upstream_defect_id:
+      upstreamC1?.c1_defect_id || result?.record_id || `rec_c2_${run?.run_id || "demo"}`,
+    c1_provenance: {
+      c1_run_id: upstreamC1?.c1_run_id ?? run?.c1_run_id ?? null,
+      c1_observation_id: upstreamC1?.c1_observation_id ?? run?.c1_observation_id ?? null,
+      c1_defect_id: upstreamC1?.c1_defect_id ?? null,
+      detection_confidence: upstreamC1?.detection_confidence ?? null,
+      source_bbox_xyxy: upstreamC1?.bbox ?? null,
+      frame_idx: upstreamC1?.frame_idx ?? null,
+      frame_dimensions: upstreamC1?.frame_dimensions ?? null,
+      source_media: upstreamC1?.source_media ?? null,
+    },
     damage_type: run?.damage_class || "Longitudinal_Crack_D00",
     geometry_mode: isCrack ? "topological_skeleton_1px" : "area_polygon_2d",
     dimensions: {
       crop_width: 256,
       crop_height: 256,
+      original_crop_width: result?.dimensions?.original_width ?? 256,
+      original_crop_height: result?.dimensions?.original_height ?? 256,
       ground_resolution_mm_per_px: 1.25, // Calibrated GSD
     },
+    pixel_transform: pixelTransform ?? null,
     metrics: {
       skeleton_path_length_px: result?.metrics?.skeleton_length_px ?? (isCrack ? 186 : 0),
       estimated_crack_length_cm: (((result?.metrics?.skeleton_length_px ?? 186) * 1.25) / 10).toFixed(2),
@@ -57,7 +73,13 @@ export default function HandoffDispatcher({ run }: HandoffDispatcherProps) {
   const c4Payload = {
     schema_version: "roadlens.c2.c4.gis.handoff.v1",
     asset_id: `RL-SURVEY-${run?.survey_id || "SV-2026-OCT"}`,
-    defect_instance_id: result?.record_id || `c2_inst_${run?.run_id || "001"}`,
+    defect_instance_id:
+      upstreamC1?.c1_defect_id || result?.record_id || `c2_inst_${run?.run_id || "001"}`,
+    c1_provenance: {
+      c1_run_id: upstreamC1?.c1_run_id ?? run?.c1_run_id ?? null,
+      c1_observation_id: upstreamC1?.c1_observation_id ?? run?.c1_observation_id ?? null,
+      source_bbox_xyxy: upstreamC1?.bbox ?? null,
+    },
     classification: run?.damage_class || "Longitudinal_Crack_D00",
     spatial_data: {
       type: "Feature",

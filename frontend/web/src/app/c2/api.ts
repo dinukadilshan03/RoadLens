@@ -31,15 +31,24 @@ export interface C1CropItem {
   run_id: string;
   record_id: string;
   defect_id: string;
+  survey_id?: string;
+  source_media?: string;
+  frame_idx?: number;
+  frame_dimensions?: { width: number; height: number };
   damage_class: string;
   display_name: string;
   confidence: number;
+  bbox?: [number, number, number, number];
   crop_artifact: string;
+  crop_url?: string;
+  annotated_url?: string;
   crop_transform: {
     origin_xy: [number, number];
     width: number;
     height: number;
+    source_frame_size?: [number, number];
   };
+  latest_c2_run_id?: string | null;
   created_at: string;
 }
 
@@ -64,6 +73,18 @@ export interface C2RunMetrics {
   vram_mb: number;
 }
 
+export interface C2PixelTransform {
+  origin_xy: [number, number];
+  width: number;
+  height: number;
+  source_frame_size?: [number, number];
+  c2_canvas_size: [number, number];
+  scale_x_to_c2: number;
+  scale_y_to_c2: number;
+  scale_x_to_crop: number;
+  scale_y_to_crop: number;
+}
+
 export interface C2ResultRecord {
   schema_version: string;
   component: string;
@@ -73,6 +94,12 @@ export interface C2ResultRecord {
   upstream: {
     c1_run_id?: string | null;
     c1_observation_id?: string | null;
+    c1_defect_id?: string | null;
+    detection_confidence?: number | null;
+    bbox?: [number, number, number, number] | null;
+    frame_idx?: number | null;
+    frame_dimensions?: { width: number; height: number } | null;
+    source_media?: string | null;
   };
   damage_class: string;
   is_crack: boolean;
@@ -82,6 +109,7 @@ export interface C2ResultRecord {
     original_width: number;
     original_height: number;
   };
+  pixel_transform?: C2PixelTransform;
   alpha_weight: number;
   metrics: C2RunMetrics;
   artifacts: C2Artifacts;
@@ -182,8 +210,9 @@ export const api = {
     return res.json();
   },
 
-  async c1Crops(): Promise<C1CropItem[]> {
-    const res = await fetch(`${C2_API}/c1-available-crops`);
+  async c1Crops(c1RunId?: string): Promise<C1CropItem[]> {
+    const query = c1RunId ? `?c1_run_id=${encodeURIComponent(c1RunId)}&limit=100` : "?limit=50";
+    const res = await fetch(`${C2_API}/c1-available-crops${query}`);
     if (!res.ok) return [];
     const data = await res.json();
     return data.crops || [];
@@ -197,6 +226,37 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: res.statusText }));
       throw new Error(err.message || "Failed to trigger C2 run");
+    }
+    return res.json();
+  },
+
+  async triggerBatchFromC1(
+    c1RunId: string,
+    observationIds?: string[]
+  ): Promise<{
+    c1_run_id: string;
+    survey_id: string;
+    count: number;
+    runs: Array<{
+      run_id: string;
+      c1_run_id: string;
+      c1_observation_id: string;
+      damage_class: string;
+      status: string;
+    }>;
+  }> {
+    const fd = new FormData();
+    fd.append("c1_run_id", c1RunId);
+    if (observationIds && observationIds.length > 0) {
+      fd.append("observation_ids", JSON.stringify(observationIds));
+    }
+    const res = await fetch(`${C2_API}/runs/from-c1`, {
+      method: "POST",
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }));
+      throw new Error(err.message || "Failed to trigger C1 batch segmentation");
     }
     return res.json();
   },
