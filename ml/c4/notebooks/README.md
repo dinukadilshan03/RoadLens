@@ -16,6 +16,7 @@ final Colab runs. Data and model files stay on Google Drive and are never commit
 | 09_GPS_Based_Road_Roughness_Visualization | Map of predictions vs labels |
 | 10_Export_Deployment_Model | Deployment model (all trips) → portable format for the app (`ml/c4/models/production`) |
 | 11_Unseen_Vehicle_App_Test | LOVO model without Fiat Palio + PVS 7–9 in the app upload format, for an honest app test |
+| 12_Lowpass_Cutoff_Sensitivity | Low-pass cutoff test (20, 30, 40, 45 Hz, none) under leave-one-vehicle-out |
 
 **How to run.** Open the notebooks in Colab, and upload `ml/c4/roughness/c4_pipeline.py` to
 `MyDrive/PVS_Code/c4_pipeline.py`. The PVS data must be in `MyDrive/PVS1` … `PVS9`. Run the
