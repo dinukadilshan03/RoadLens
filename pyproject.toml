@@ -9,26 +9,56 @@ authors = [
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "fastapi>=0.142.2",
-    "ipykernel>=7.4.0",
-    "matplotlib>=3.11.2",
+    "joblib>=1.4",
     "numpy>=2.4.6",
-    "opencv-python>=5.0.0.93",
+    "opencv-python-headless>=4.10.0",
     "pandas>=3.0.6",
-    "pathlib>=1.0.1",
     "pillow>=12.3.0",
     "psycopg[binary]>=3.2,<4",
     "pydantic>=2.13.5",
     "python-dotenv>=1,<2",
-    "python-multipart>=0.0.9",
+    "python-multipart>=0.0.20",
     "pyyaml>=6.0.3",
+    "scikit-image>=0.24",
+    "scikit-learn>=1.5",
+    "scipy>=1.14",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
     "ultralytics>=8.3.0",
     "uvicorn[standard]>=0.54.0",
+    "xgboost-cpu>=2.1 ; sys_platform == 'linux'",
+    "xgboost>=2.1 ; sys_platform != 'linux'",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.0",
     "nbdime>=4.0.4",
     "nbstripout>=0.9.1",
     "pytest>=9.1.1",
     "ruff>=0.16.10",
 ]
+notebook = [
+    "ipykernel>=7.4.0",
+    "matplotlib>=3.11.2",
+]
+
+[tool.uv]
+override-dependencies = [
+    "opencv-python ; sys_platform == 'never'",
+    "nvidia-nccl-cu12 ; sys_platform == 'never'",
+    "nvidia-ml-py ; sys_platform == 'never'",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+torchvision = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

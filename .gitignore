@@ -58,11 +58,15 @@ node_modules/
 .npm/
 .yarn/
 .pnpm-store/
+.pnp
+.pnp.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 .eslintcache
 *.tsbuildinfo
+next-env.d.ts
 .next/
 out/
 .vercel/
@@ -77,6 +81,7 @@ out/
 *.bin
 *.h5
 *.hdf5
+*.joblib
 
 # Archives & dataset bundles repo-wide
 *.zip
@@ -86,12 +91,14 @@ out/
 *.rar
 *.7z
 
-# ML experiment runs, caches & tracking repo-wide
+# ML experiment runs, caches, & tool outputs repo-wide
 runs/
 experiments/
 wandb/
 .cache/
 *.cache
+graphify-out/
+.agents/
 
 # Logs & temporary files
 *.log
@@ -99,3 +106,4 @@ wandb/
 *.bak
 *.orig
 *.rej
+*.pem

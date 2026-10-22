@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -40,6 +41,9 @@ C2_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CGAN_WEIGHTS = C2_DIR / "weights" / "cgan_frozen_sensor.pth"
 DEFAULT_SEGMENTER_WEIGHTS = C2_DIR / "weights" / "c2_ltca_segmenter_best.pth"
 DEFAULT_POTHOLE_WEIGHTS = C2_DIR / "weights" / "c2_pothole_ltca_best.pth"
+
+_MODEL_LOCK = threading.Lock()
+_MODEL_CACHE: dict[tuple[str, str], tuple[Any, Any]] = {}
 
 
 class C2InputError(ValueError):
@@ -88,10 +92,12 @@ def compute_sha256(path: Path) -> str:
 
 
 def _morphological_thinning(mask_255: np.ndarray) -> np.ndarray:
-    """Exact 1-pixel skeleton centerline using Zhang-Suen or erosion peeling."""
+    """Exact 1-pixel skeleton centerline using Zhang-Suen / skimage skeletonize or erosion peeling."""
     try:
-        skel = cv2.ximgproc.thinning(mask_255, thinningType=cv2.ximgproc.THINNING_ZHANGSUEN)
-        return (skel > 0).astype(np.uint8) * 255
+        from skimage.morphology import skeletonize
+
+        skel = skeletonize(mask_255 > 0)
+        return skel.astype(np.uint8) * 255
     except Exception:
         kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
         skeleton = np.zeros_like(mask_255)
@@ -105,6 +111,29 @@ def _morphological_thinning(mask_255: np.ndarray) -> np.ndarray:
             if cv2.countNonZero(temp) == 0:
                 break
         return skeleton
+
+
+def _get_cached_segmenter(cgan_weights: Path, seg_weights: Path):
+    import torch
+    from ml.c2.models.segmenter import DualStreamLTCASegmenter
+
+    key = (str(cgan_weights.resolve()), str(seg_weights.resolve()))
+    with _MODEL_LOCK:
+        if key not in _MODEL_CACHE:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            segmenter = DualStreamLTCASegmenter(
+                cgan_weights_path=cgan_weights,
+                feature_dim=96,
+                pretrained_backbone=False,
+            ).to(device)
+            ckpt = torch.load(seg_weights, map_location=device, weights_only=False)
+            if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+                segmenter.load_state_dict(ckpt["model_state_dict"])
+            elif isinstance(ckpt, dict):
+                segmenter.load_state_dict(ckpt)
+            segmenter.eval()
+            _MODEL_CACHE[key] = (segmenter, device)
+        return _MODEL_CACHE[key]
 
 
 def _emulate_software_thermal_physics(rgb_256: np.ndarray, damage_class: str) -> np.ndarray:
@@ -245,60 +274,27 @@ def run(request: C2Request, context: Any) -> C2Result:
     pseudo_thm_uint8 = None
 
     try:
-        import torch
-        from ml.c2.models.segmenter import DualStreamLTCASegmenter
+        if seg_weights.exists() and cgan_weights.exists():
+            import torch
 
-        if cgan_weights.exists():
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            segmenter, device = _get_cached_segmenter(cgan_weights, seg_weights)
+
+            # Normalization to [-1, 1]
             t_input = torch.from_numpy(rgb_256).permute(2, 0, 1).float().div_(127.5).sub_(1.0).unsqueeze(0).to(device)
+            with torch.inference_mode():
+                prob_t, alpha_t, thm_t = segmenter(t_input)
+                if prob_t.shape[-2:] != (256, 256):
+                    import torch.nn.functional as F
+                    prob_t = F.interpolate(prob_t, size=(256, 256), mode="bilinear", align_corners=False)
 
-            # Auto-detection probe: if defect class is unspecified/auto and not explicitly crack
-            if not is_grate_ood and not has_crack_explicit and not is_pothole and DEFAULT_POTHOLE_WEIGHTS.exists():
-                cache_pot_key = f"{DEFAULT_POTHOLE_WEIGHTS}_{cgan_weights}_{device}"
-                if cache_pot_key in _MODEL_CACHE:
-                    pot_seg = _MODEL_CACHE[cache_pot_key]
-                else:
-                    pot_seg = DualStreamLTCASegmenter(cgan_weights_path=cgan_weights, feature_dim=96).to(device)
-                    ckpt_p = torch.load(DEFAULT_POTHOLE_WEIGHTS, map_location=device, weights_only=False)
-                    pot_seg.load_state_dict(ckpt_p["model_state_dict"] if isinstance(ckpt_p, dict) and "model_state_dict" in ckpt_p else ckpt_p)
-                    pot_seg.eval()
-                    _MODEL_CACHE[cache_pot_key] = pot_seg
-                with torch.no_grad():
-                    p_probe, _, _ = pot_seg(t_input)
-                pot_px = int((p_probe.squeeze() > 0.40).sum().item())
-                if pot_px >= 7000:
-                    logger.info(f"Auto-detected pothole cavity pattern ({pot_px} px > 0.40). Routing to Pothole_D40 weights.")
-                    is_pothole = True
-                    seg_weights = DEFAULT_POTHOLE_WEIGHTS
-
-            if seg_weights.exists():
-                cache_key = f"{seg_weights}_{cgan_weights}_{device}"
-                if cache_key in _MODEL_CACHE:
-                    segmenter = _MODEL_CACHE[cache_key]
-                else:
-                    segmenter = DualStreamLTCASegmenter(cgan_weights_path=cgan_weights, feature_dim=96).to(device)
-                    ckpt = torch.load(seg_weights, map_location=device, weights_only=False)
-                    if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
-                        segmenter.load_state_dict(ckpt["model_state_dict"])
-                    elif isinstance(ckpt, dict):
-                        segmenter.load_state_dict(ckpt)
-                    segmenter.eval()
-                    _MODEL_CACHE[cache_key] = segmenter
-
-                with torch.no_grad():
-                    prob_t, alpha_t, thm_t = segmenter(t_input)
-                    if prob_t.shape[-2:] != (256, 256):
-                        import torch.nn.functional as F
-                        prob_t = F.interpolate(prob_t, size=(256, 256), mode="bilinear", align_corners=False)
-
-                prob_map = prob_t.squeeze().cpu().numpy()
-                if prob_map.shape != (256, 256):
-                    prob_map = cv2.resize(prob_map, (256, 256), interpolation=cv2.INTER_LINEAR)
-                alpha_score = float(alpha_t.squeeze().mean().item())
-                pseudo_thm_uint8 = ((thm_t.squeeze().cpu().numpy() + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
-                if pseudo_thm_uint8.shape != (256, 256):
-                    pseudo_thm_uint8 = cv2.resize(pseudo_thm_uint8, (256, 256), interpolation=cv2.INTER_LINEAR)
-                logger.info(f"Executed C2 PyTorch model inference (is_pothole={is_pothole}, weights={seg_weights.name}).")
+            prob_map = prob_t.squeeze().cpu().numpy()
+            if prob_map.shape != (256, 256):
+                prob_map = cv2.resize(prob_map, (256, 256), interpolation=cv2.INTER_LINEAR)
+            alpha_score = float(alpha_t.squeeze().mean().item())
+            pseudo_thm_uint8 = ((thm_t.squeeze().cpu().numpy() + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
+            if pseudo_thm_uint8.shape != (256, 256):
+                pseudo_thm_uint8 = cv2.resize(pseudo_thm_uint8, (256, 256), interpolation=cv2.INTER_LINEAR)
+            logger.info("Executed C2 PyTorch model inference.")
     except Exception as e:
         logger.warning(f"PyTorch model execution fallback to physics emulator: {e}")
 

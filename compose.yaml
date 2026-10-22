@@ -28,10 +28,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       C1_STORAGE_DIR: /data/c1
       C1_WEIGHTS_PATH: /app/ml/c1/weights/base_model_b0.pt
+      C2_STORAGE_DIR: /data/c2
       C4_STORAGE_DIR: /data/c4
+      C4_MODEL_DIR: /data/c4/models/production
+      C4_DEMO_DIR: /data/c4/models/demo
     volumes:
       - c1_data:/data/c1
       - ./ml/c1/weights:/app/ml/c1/weights:ro
+      - c2_data:/data/c2
       - c4_data:/data/c4
     depends_on:
       db:
@@ -59,4 +63,5 @@ services:
 volumes:
   postgres_data:
   c1_data:
+  c2_data:
   c4_data:

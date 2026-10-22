@@ -25,14 +25,13 @@ ml/c4/
   fixtures/synthetic_drive/   contract fixture used by the tests
   models/                     model weights (not in Git, see models/README.md)
   tests/                      contract tests
-  requirements.in / .lock     dependencies (locked for Python 3.11)
 ```
 
 ## Quick start
 
 ```bash
-uv pip install -r ml/c4/requirements.lock          # Python 3.11, repo virtual environment
-python -m pytest ml/c4/tests -q                     # 17 tests, about 5 s
+uv sync --frozen                                    # Python 3.11, unified repo virtual environment
+uv run pytest ml/c4/tests -q                        # 17 tests, about 5 s
 
 python -m ml.c4.scripts.make_demo_model --out ml/c4/models/demo
 python -m ml.c4.roughness.adapter \
@@ -110,7 +109,7 @@ Storage:
 This is the first milestone. Execution uses FastAPI background tasks, one run at a time. When the
 platform worker exists, it calls the same `ml.c4.roughness.adapter.run(...)`.
 
-The backend Docker image installs `ml/c4/requirements.lock` (see `backend/Dockerfile`).
+The backend Docker image installs all runtime dependencies from the root `uv.lock` (see `backend/Dockerfile`).
 
 ## Input contract
 
